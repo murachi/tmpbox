@@ -1,0 +1,8 @@
+$font-url: 'https://fonts.googleapis.com/css?family=Fira+Mono|Noto+Sans+JP&display=swap&subset=japanese';
+$font-family: 'Noto Sans JP','Fira Mono',monospace;
+
+@import url($font-url);
+
+body {
+  font-family: $font-family;
+}
