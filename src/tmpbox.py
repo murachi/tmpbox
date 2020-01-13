@@ -1,9 +1,13 @@
+import os, configparser
 from flask import Flask, url_for, render_template, Markup, request
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 auth = HTTPBasicAuth()
+
+conf = configparser.ConfigParser()
+conf.read('conf.d/tmpbox.ini')
 
 @auth.verify_password
 def verify_password(username, password):

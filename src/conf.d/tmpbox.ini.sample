@@ -1,0 +1,5 @@
+[DB]
+ConnectionString = postgresql://tmpbox:tmpbox123@localhost/tmpbox
+
+[UploadFiles]
+DirectoryRoot = /var/tmpbox/files
