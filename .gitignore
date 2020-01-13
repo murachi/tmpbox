@@ -2,3 +2,4 @@ __pycache__/
 /src/static/*.css
 /src/static/*.css.map
 /src/static/*.js
+/src/conf.d/*.ini
