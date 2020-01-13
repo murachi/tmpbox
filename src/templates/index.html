@@ -1,0 +1,14 @@
+<!document html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>tmpbox</title>
+</head>
+<body>
+  {% if username %}
+  <p>こんにちは、 {{ username }}さん。</p>
+  {% else %}
+  <p><a href="/login">こちらからログインしてください。</a></p>
+  {% endif %}
+</body>
+</html>
