@@ -3,6 +3,7 @@ from sqlalchemy import create_engine, Column, Boolean, Integer, String, Date, Fo
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.session import Session
 from sqlalchemy.sql import functions
+from werkzeug.security import generate_password_hash, check_password_hash
 
 Base = declarative_base()
 
@@ -14,17 +15,22 @@ class Account(Base):
 
     user_id = Column(String(50), nullable = False, primary_key = True)
     display_name = Column(String(100), nullable = False)
+    password_hash = Column(String(500), nullable = False)
     is_admin = Column(Boolean, nullable = False, default = False)
 
-    def __init__(self, user_id, display_name):
+    def __init__(self, user_id, display_name, password):
         '''
         コンストラクタ
 
         :param str user_id: ユーザー ID
         :param str display_name: 表示名
+        :param str password: パスワード
+
+        ``password`` にはハッシュ化する前の平文を渡すこと。
         '''
         self.user_id = user_id
         self.display_name = display_name
+        self.password_hash = generate_password_hash(password)
 
     def to_dict(self):
         '''
@@ -35,6 +41,7 @@ class Account(Base):
         return {
             "user_id": self.user_id,
             "display_name": self.display_name,
+            "password_hash": self.password_hash,
             "is_admin": self.is_admin,
         }
 
@@ -215,3 +222,36 @@ class TmpboxDB:
             self.engine = create_engine(self.connection_string)
 
         Base.metadata.create_all(self.engine)
+
+    def register_account(self, user_id, display_name, password, is_admin = False):
+        '''
+        アカウントを登録する
+
+        :param str user_id: ユーザー ID
+        :param str display_name: 表示名
+        :param str password: パスワード (平文)
+        :param bool is_admin: 管理者権限か?
+        '''
+        self.session_scope(
+            lambda s: self.__session_register_account(s, user_id, display_name, password, is_admin),
+            True)
+
+    def __session_register_account(self, session, user_id, display_name, password, is_admin):
+        '''
+        アカウントを登録するセッション処理
+
+        :param sqlalchemy.orm.session.Session session: セッションオブジェクト
+        :param str user_id: ユーザー ID
+        :param str display_name: 表示名
+        :param str password: パスワード (平文)
+        :param bool is_admin: 管理者権限か?
+        '''
+        # 既存 ID ではないか確認
+        existing_user_id = session.query(Account.user_id).filter(Account.user_id == user_id).scalar()
+        if existing_user_id is not None:
+            raise TmpboxDBDupicatedException("ユーザー ID '{0}' は既に使われています。".format(user_id))
+
+        account = Account(user_id, display_name, password)
+        if is_admin:
+            account.is_admin = True
+        session.add(account)
