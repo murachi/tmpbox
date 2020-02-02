@@ -1,5 +1,9 @@
+[User]
+user = tmpbox
+group = tmpbox
+
 [DB]
-ConnectionString = postgresql://tmpbox:tmpbox123@localhost/tmpbox
+connectionstring = mysql://tmpbox_master:password@localhost/tmpbox
 
 [UploadFiles]
-DirectoryRoot = /var/tmpbox/files
+directoryroot = /var/tmpbox
