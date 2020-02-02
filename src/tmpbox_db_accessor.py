@@ -1,6 +1,6 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine, Column, Boolean, Integer, String, Date, ForeignKey, PrimaryKeyConstraint, Index
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Query, relationship
 from sqlalchemy.orm.session import Session
 from sqlalchemy.sql import functions
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -41,7 +41,6 @@ class Account(Base):
         return {
             "user_id": self.user_id,
             "display_name": self.display_name,
-            "password_hash": self.password_hash,
             "is_admin": self.is_admin,
         }
 
@@ -302,6 +301,17 @@ class TmpboxDB:
         return self.session_scope(
             lambda s: (lambda acc: acc.check_password(password) if acc else False)(
                 s.query(Account).filter(Account.user_id == user_id).scalar())
+        )
+
+    def get_account(self, user_id):
+        '''
+        アカウント情報を取得する
+
+        :param str user_id: ユーザー ID
+        :return: アカウント情報の辞書
+        '''
+        return self.session_scope(
+            lambda s: s.query(Account).filter(Account.user_id == user_id).one().to_dict()
         )
 
     def register_directory(self, dir_name, expires_days, summary = None):
