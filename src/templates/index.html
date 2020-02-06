@@ -1,24 +1,19 @@
-<!document html>
-<html lang="ja">
-<head>
-  <meta charset="utf-8">
-  <title>tmpbox</title>
-</head>
-<body>
-  <header>
-    <section class="login-message">
-      {% if user_id %}
-      <p>
-        こんにちは、 {{ display_name }}さん。
-        {% if is_admin %}
-        <a href="/admin">管理者画面はこちら</a>。
-        {% endif %}
-      </p>
-      {% else %}
-      <p><a href="/login">こちらからログインしてください。</a></p>
-      {% endif %}
-    </section>
+{% extends "base.html" %}
+{% block title %}トップページ{% endblock %}
+{% block header %}
+<section class="login-message">
+  {% if user_id %}
+  <p>
+    こんにちは、 {{ display_name }}さん。
+    {% if is_admin %}
+    <a href="/admin">管理者画面はこちら</a>。
+    {% endif %}
+  </p>
+  {% else %}
+  <p><a href="/login">こちらからログインしてください。</a></p>
+  {% endif %}
+</section>
+{% endblock %}
+{% block main %}
 
-  </header>
-</body>
-</html>
+{% endblock %}

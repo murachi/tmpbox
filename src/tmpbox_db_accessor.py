@@ -314,6 +314,16 @@ class TmpboxDB:
             lambda s: s.query(Account).filter(Account.user_id == user_id).one().to_dict()
         )
 
+    def get_all_accounts(self):
+        '''
+        アカウント情報をすべて取得する
+
+        :return: アカウント情報辞書のシーケンス
+        '''
+        return self.session_scope(
+            lambda s: [n.to_dict() for n in s.query(Account).order_by(Account.user_id)]
+        )
+
     def register_directory(self, dir_name, expires_days, summary = None):
         '''
         ディレクトリの情報を登録する
@@ -370,7 +380,7 @@ class TmpboxDB:
         :return: ディレクトリ情報辞書のリスト
         '''
         return self.session_scope(
-            lambda s: [n.to_dict() for n in s.query(Directory)]
+            lambda s: [n.to_dict() for n in s.query(Directory).order_by(Directory.directory_name)]
         )
 
     def get_directories_for(self, user_id):
