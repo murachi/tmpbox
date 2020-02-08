@@ -6,13 +6,14 @@
     <input type="hidden" name="new" value="{% if is_new %}1{% else %}0{% endif %}">
     <table>
       <tr>
-        <th>ユーザー ID</th>
+        <th>ユーザーID</th>
         <td>
           {% if is_new %}
           <input type="text" name="id" value="" maxlength="50" class="user_id">
           {% else %}
           <input type="hidden" name="id" value="{{ target_user['user_id'] }}">
           {{ target_user["user_id"] }}
+          {% endif %}
         </td>
       </tr>
       <tr>
@@ -36,9 +37,13 @@
             <input type="radio" name="pwr" value="1" id="password_reset_yes">
             リセットする (自動生成)
           </label>
+          {% endif %}
         </td>
       </tr>
     </table>
+    <p>
+      <button type="submit">送信</button>
+    </p>
   </form>
 </section>
 {% endblock %}

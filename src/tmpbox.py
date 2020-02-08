@@ -54,7 +54,7 @@ def page_index():
     ログイン済みであればアカウントに参照権限のあるディレクトリのリストを表示する。
     それ以外の場合、ログインページへのリンクを表示する。
     '''
-    user_id, acc_info = auth.username(), None
+    user_id, acc_info = auth.username(), {}
     if user_id:
         acc_info = db.get_account(user_id)
 
@@ -79,7 +79,20 @@ def page_admin():
     :return: 管理者ページテンプレート
     '''
     users = db.get_all_accounts()
+    # ユーザーが管理者でなければ forbidden
     if not [n for n in users if n['user_id'] == auth.username()][0]['is_admin']:
         return abort(403)
     directories = db.get_directories()
     return render_template("admin.html", users = users, directories = directories)
+
+@app.route('/admin/new-account')
+@auth.login_required
+def page_new_account():
+    '''
+    アカウント新規登録フォームページ
+
+    :return: アカウント編集フォームページテンプレート
+    '''
+    # ユーザーが管理者でなければ forbidden
+    acc = db.get_account(auth.username())
+    return render_template("edit-account.html", is_new = True)
