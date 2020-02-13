@@ -3,3 +3,4 @@ __pycache__/
 /src/static/*.css.map
 /src/static/*.js
 /src/conf.d/*.ini
+/node_modules/

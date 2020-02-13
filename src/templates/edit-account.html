@@ -1,12 +1,22 @@
 {% extends "base.html" %}
 {% block title %}アカウント{% if is_new %}新規登録{% else %}編集{% endif %}{% endblock %}
+{% block additional_head %}
+<script><!--
+  var exports = {};
+  function require(mod_path) {
+    return exports;
+  }
+--></script>
+<script src="/static/validator.js"></script>
+<script src="/static/edit-account.js"></script>
+{% endblock %}
 {% block header %}
 <section class="edit account">
-  <form target="/admin/post-account" method="POST">
+  <form target="/admin/post-account" method="POST" name="account">
     <input type="hidden" name="new" value="{% if is_new %}1{% else %}0{% endif %}">
     <table>
       <tr>
-        <th>ユーザーID</th>
+        <th>ユーザー ID</th>
         <td>
           {% if is_new %}
           <input type="text" name="id" value="" maxlength="50" class="user_id">

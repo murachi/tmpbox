@@ -1,0 +1,24 @@
+{
+  "name": "tmpbox",
+  "version": "1.0.0",
+  "description": "[あぷろだを作ります](https://github.com/murachi/nop/issues/4)。",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/murachi/tmpbox.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/murachi/tmpbox/issues"
+  },
+  "homepage": "https://github.com/murachi/tmpbox#readme",
+  "devDependencies": {
+    "sass": "^1.25.0",
+    "typescript": "^3.7.5"
+  }
+}
