@@ -2,9 +2,10 @@
 {% block title %}アカウント{% if is_new %}新規登録{% else %}編集{% endif %}{% endblock %}
 {% block additional_head %}
 <script src="/static/validator.js"></script>
+<script src="/static/show-message.js"></script>
 <script src="/static/edit-account.js"></script>
 {% endblock %}
-{% block header %}
+{% block main %}
 <section class="edit account">
   <form target="/admin/post-account" method="POST" name="account">
     <input type="hidden" name="new" value="{% if is_new %}1{% else %}0{% endif %}">
@@ -50,7 +51,4 @@
     </p>
   </form>
 </section>
-{% endblock %}
-{% block main %}
-
 {% endblock %}
