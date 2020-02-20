@@ -25,6 +25,10 @@
     , "placeOpenBraceOnNewLineForFunctions": true
     , "placeOpenBraceOnNewLineForControlBlocks": true
   }
+  , "typedocOptions": {
+    "mode": "modules"
+    , "out": "./docs"
+  }
   , "compileOnSave": true
   , "filesGlob": [
     "./ts/*.ts"

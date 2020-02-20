@@ -1,10 +1,11 @@
-import os, configparser, secrets
+import os, configparser, secrets, urllib.parse
 from flask import Flask, url_for, render_template, redirect, abort, Markup, request
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
 from jinja2 import Markup
 
 from tmpbox_db_accessor import TmpboxDB, TmpboxDBDuplicatedException
+import tmpbox_validator as validator
 
 app = Flask(__name__)
 auth = HTTPBasicAuth()
@@ -117,13 +118,19 @@ def post_new_account():
     display_name = request.form["dn"]
     password = secrets.token_urlsafe(int(conf["Security"]["AutoPasswordLength"]))
 
+    def error_page(msg):
+        return render_template("edit-account.html", is_new = True,
+            target_user = { "user_id": user_id, "display_name": display_name },
+            message_contents = Markup('<p class="error">') + msg + Markup('</p>'))
+
+    if not validator.validateNameToken(user_id):
+        return error_page(
+            "ユーザーID は半角英字で始まり半角英数字とアンダーバー _ のみで構成される名前にしてください。")
+
     try:
         new_user = db.register_account(user_id, display_name, password)
     except TmpboxDBDuplicatedException as exc:
-        return render_template("edit-account.html", is_new = True,
-            target_user = { "user_id": user_id, "display_name": display_name },
-            message_contents = Markup('<p class="error">ユーザー ID <code class="user_id">')
-                + user_id + Markup('</code> は既に存在しています。'))
+        return error_page(''.join(exc.args))
 
     return render_template("easy-info.html", summary = "アカウント登録完了",
         content = Markup('<p>ユーザー ID <code class="user_id">') + user_id
@@ -173,3 +180,71 @@ def post_edit_account(user_id):
         is_new_password = want_new_password, password = password,
         message_contents = Markup('<p class="info"><code class="user_id">') + user_id
             + Markup('</code> のアカウント情報を更新しました。'))
+
+@app.route('/admin/new-directory', methods = ['GET'])
+@auth.login_required
+def page_new_directory():
+    '''
+    新規ディレクトリ登録フォームページ
+
+    :return: 新規ディレクトリ登録フォームテンプレート
+    '''
+    users = db.get_all_accounts()
+    # ユーザーが管理者でなければ forbidden
+    if not [n for n in users if n['user_id'] == auth.username()][0]['is_admin']:
+        return abort(403)
+
+    for user in users: user["allow"] = False
+    return render_template("edit-directory.html", is_new = True,
+        target_dir = {
+            "directory_name": "",
+            "summary": "",
+            "expires_days": conf["UploadFiles"]["DefaultExpiresDays"],
+        },
+        users = users)
+
+@app.route('/admin/new-directory', methods = ['POST'])
+@auth.login_required
+def post_new_directory():
+    '''
+    新規ディレクトリ登録受信処理
+
+    :return: 登録完了のアナウンスページ
+    '''
+    # ユーザーが管理者でなければ forbidden
+    acc = db.get_account(auth.username())
+    if not acc or not acc["is_admin"]:
+        return abort(403)
+
+    # 受信データサイズをチェック (でかすぎる場合はけんもほろろに Bad Request)
+    if request.content_length > int(conf["Security"]["MaxFormLength"]):
+        return abort(400)
+
+    raw_form = urllib.parse.parse_qsl(request.get_data(as_text = True))
+    dir_name = request.form["nm"]
+    summary = request.form["sm"]
+    expires_days = int(request.form["ed"])
+    permissions = [n[1] for n in raw_form if n[0] == "pm"]
+
+    try:
+        db.register_directory(dir_name, expires_days, summary)
+    except TmpboxDBDuplicatedException as exc:
+        users = db.get_all_accounts()
+        for user in users:
+            user["allow"] = user["user_id"] in permissions
+        return render_template("edit-directory.html", is_new = True,
+            target_dir = {
+                "directory_name": dir_name,
+                "summary": summary,
+                "expires_days": expires_days,
+            },
+            users = users,
+            message_contents = Markup('<p class="error">') + ''.join(exc.args) + Markup('</p>'))
+    os.makedirs(os.path.join(conf["UploadFiles"]["DirectoryRoot"], dir_name), exist_ok = True)
+
+    db.update_permission(dir_name, permissions)
+
+    return render_template("easy-info.html", summary = "ディレクトリ作成完了",
+        content = Markup('<p>ディレクトリ <code class="directory">') + dir_name
+            + Markup("</code> の作成に成功しました。"),
+        prev_url = "/admin", prev_page = "管理者ページ")

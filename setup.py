@@ -8,6 +8,8 @@ default_unix_user = "tmpbox"
 default_file_dir = "/var/tmpbox"
 
 default_auto_password_length = 12
+default_expires_days = 14
+max_form_length = 10000
 
 prompt_msg = {
     "ja_JP": {
@@ -275,9 +277,11 @@ if __name__ == '__main__':
     }
     conf["UploadFiles"] = {
         "DirectoryRoot": file_dir,
+        "DefaultExpiresDays": default_expires_days,
     }
     conf["Security"] = {
         "AutoPasswordLength": default_auto_password_length,
+        "MaxFormLength": max_form_length,
     }
     with open(os.path.join("src", "conf.d", "tmpbox.ini"), "w") as fout:
         conf.write(fout)

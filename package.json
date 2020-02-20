@@ -19,6 +19,7 @@
   "homepage": "https://github.com/murachi/tmpbox#readme",
   "devDependencies": {
     "sass": "^1.25.0",
+    "typedoc": "^0.16.10",
     "typescript": "^3.7.5"
   }
 }

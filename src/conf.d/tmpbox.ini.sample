@@ -7,6 +7,8 @@ ConnectionString = mysql://tmpbox_master:password@localhost/tmpbox
 
 [UploadFiles]
 DirectoryRoot = /var/tmpbox
+DefaultExpiresDays = 14
 
 [Security]
 AutoPasswordLength = 12
+MaxFormLength = 10000

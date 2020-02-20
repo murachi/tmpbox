@@ -7,8 +7,8 @@ window.addEventListener("DOMContentLoaded", function() {
     sm.clear();
     sm.clearHighlight(this);
     // validation
-    let user_id_elem: HTMLInputElement = this.elements["id"];
-    if (user_id_elem.type === "text" && !validator.validateNameToken(this.elements["id"].value)) {
+    let user_id_elem = this.elements["id"] as HTMLInputElement;
+    if (user_id_elem && !validator.validateNameToken(user_id_elem.value)) {
       sm.highlight(user_id_elem);
       sm.addMessage(
         "ユーザーID は半角英字で始まり半角英数字とアンダーバー _ のみで構成される名前にしてください。",

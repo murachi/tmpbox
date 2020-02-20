@@ -4,3 +4,4 @@ __pycache__/
 /src/static/*.js
 /src/conf.d/*.ini
 /node_modules/
+/docs/

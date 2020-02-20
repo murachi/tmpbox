@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}ディレクトリ{% if is_new %}新規登録{% else %}編集{% endif %}{% endblock %}
+{% block additional_head %}
+<script src="/static/validator.js"></script>
+<script src="/static/show-message.js"></script>
+<script src="/static/edit-directory.js"></script>
+{% endblock %}
+{% block main %}
+<section class="edit directory">
+  <form method="POST" name="directory">{# このページの URL へ POST する #}
+    <table>
+      <tr>
+        <th>ディレクトリ名</th>
+        <td>
+          {% if is_new %}
+          <input type="text" name="nm" value="{{ target_dir['directory_name'] }}"
+                 maxlength="100" class="directory_name">
+          {% else %}
+          <code class="directory">{{ target_dir["directory_name"] }}</code>
+          {% endif %}
+        </td>
+      </tr>
+      {% if not is_new %}
+      <tr>
+        <th>作成日</th>
+        <td>{{ target_dir["create_date"] | dispdate }}</td>
+      </tr>
+      {% endif %}
+      <tr>
+        <th>ディレクトリの説明</th>
+        <td>
+          <textarea name="sm" wrap="soft" class="summary">{{ target_dir["summary"] }}</textarea>
+        </td>
+      </tr>
+      <tr>
+        <th>デフォルトのファイル保存期間</th>
+        <td>
+          <label for="expires_days">
+            ファイルを登録してから
+            <input type="number" name="ed" value="{{ target_dir['expires_days'] }}" min="0"
+                   id="expires_days" class="days">
+            日後まで
+          </label>
+        </td>
+      </tr>
+      <tr>
+        <th>参照権限ユーザー</th>
+        <td>
+          <ul class="permissions">
+            {% for user in users %}
+            <li><label for="permission-{{ user['user_id'] }}">
+              <input type="checkbox" name="pm" value="{{ user['user_id'] }}"
+                     {% if user["allow"] %}checked="checked"{% endif %}>
+              <code class="user_id">{{ user['user_id'] }}</code> ({{ user['display_name'] }})
+            </label></li>
+            {% endfor %}
+          </ul>
+        </td>
+      </tr>
+    </table>
+    <p>
+      <button type="submit">送信</button>
+    </p>
+  </form>
+</section>
+<section class="navigator">
+  <p>
+    <a href="/admin">管理者ページに戻る</a>
+  </p>
+</section>
+{% endblock %}
