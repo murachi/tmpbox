@@ -263,8 +263,9 @@ class TmpboxDB:
         :param str display_name: 表示名
         :param str password: パスワード (平文)
         :param bool is_admin: 管理者権限か?
+        :return: 登録したユーザーアカウント情報の辞書
         '''
-        self.session_scope(
+        return self.session_scope(
             lambda s: self.__session_register_account(s, user_id, display_name, password, is_admin),
             True)
 
@@ -277,6 +278,7 @@ class TmpboxDB:
         :param str display_name: 表示名
         :param str password: パスワード (平文)
         :param bool is_admin: 管理者権限か?
+        :return: 登録したユーザーアカウント情報の辞書
         '''
         # 既存 ID ではないか確認
         existing_user_id = session.query(Account.user_id).filter(Account.user_id == user_id).scalar()
@@ -287,6 +289,38 @@ class TmpboxDB:
         if is_admin:
             account.is_admin = True
         session.add(account)
+
+        return account.to_dict()
+
+    def modify_account(self, user_id, display_name, password = None):
+        '''
+        アカウントの情報を変更する
+
+        :param str user_id: ユーザー ID
+        :param str display_name: 表示名
+        :param str password: パスワード (平文) / 変更しない場合は None を指定する
+        :return: 変更したユーザーアカウント情報の辞書
+        '''
+        return self.session_scope(
+            lambda s: self.__session_modify_account(s, user_id, display_name, password),
+            True)
+
+    def __session_modify_account(self, session, user_id, display_name, password):
+        '''
+        アカウントの情報を変更するセッション処理
+
+        :param sqlalchemy.orm.session.Session session: セッションオブジェクト
+        :param str user_id: ユーザー ID
+        :param str display_name: 表示名
+        :param str password: パスワード (平文) / 変更しない場合は None を指定する
+        :return: 変更したユーザーアカウント情報の辞書
+        '''
+        account = session.query(Account).filter(Account.user_id == user_id).one()
+        account.display_name = display_name
+        if password:
+            account.password_hash = generate_password_hash(password)
+
+        return account.to_dict()
 
     def check_authentication(self, user_id, password):
         '''

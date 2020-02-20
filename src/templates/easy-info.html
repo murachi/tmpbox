@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ summary }}{% endblock %}
+{% block main %}
+<section class="message {{ type }}">
+  {{ content }}
+</section>
+<section class="navigator">
+  <p>
+    <a href="{{ prev_url }}">{{ prev_page }}に戻る</a>
+  </p>
+</section>
+{% endblock %}

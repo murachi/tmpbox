@@ -7,6 +7,8 @@ from tmpbox_db_accessor import TmpboxDB
 default_unix_user = "tmpbox"
 default_file_dir = "/var/tmpbox"
 
+default_auto_password_length = 12
+
 prompt_msg = {
     "ja_JP": {
         "UNIX-user": [
@@ -263,6 +265,7 @@ if __name__ == '__main__':
 
     # 設定ファイル出力
     conf = configparser.ConfigParser()
+    conf.optionxform = str  # オプション名が勝手に小文字に書き換えられてしまうのを防ぐ
     conf["User"] = {
         "User": unix_user,
         "Group": unix_group,
@@ -272,6 +275,9 @@ if __name__ == '__main__':
     }
     conf["UploadFiles"] = {
         "DirectoryRoot": file_dir,
+    }
+    conf["Security"] = {
+        "AutoPasswordLength": default_auto_password_length,
     }
     with open(os.path.join("src", "conf.d", "tmpbox.ini"), "w") as fout:
         conf.write(fout)

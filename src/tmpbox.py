@@ -1,10 +1,10 @@
-import os, configparser
+import os, configparser, secrets
 from flask import Flask, url_for, render_template, redirect, abort, Markup, request
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
 from jinja2 import Markup
 
-from tmpbox_db_accessor import TmpboxDB
+from tmpbox_db_accessor import TmpboxDB, TmpboxDBDuplicatedException
 
 app = Flask(__name__)
 auth = HTTPBasicAuth()
@@ -85,7 +85,7 @@ def page_admin():
     directories = db.get_directories()
     return render_template("admin.html", users = users, directories = directories)
 
-@app.route('/admin/new-account')
+@app.route('/admin/new-account', methods = ['GET'])
 @auth.login_required
 def page_new_account():
     '''
@@ -95,4 +95,81 @@ def page_new_account():
     '''
     # ユーザーが管理者でなければ forbidden
     acc = db.get_account(auth.username())
+    if not acc or not acc["is_admin"]:
+        return abort(403)
+
     return render_template("edit-account.html", is_new = True)
+
+@app.route('/admin/new-account', methods = ['POST'])
+@auth.login_required
+def post_new_account():
+    '''
+    アカウント新規登録受信処理
+
+    :return: 登録完了のアナウンスページ
+    '''
+    # ユーザーが管理者でなければ forbidden
+    acc = db.get_account(auth.username())
+    if not acc or not acc["is_admin"]:
+        return abort(403)
+
+    user_id = request.form["id"]
+    display_name = request.form["dn"]
+    password = secrets.token_urlsafe(int(conf["Security"]["AutoPasswordLength"]))
+
+    try:
+        new_user = db.register_account(user_id, display_name, password)
+    except TmpboxDBDuplicatedException as exc:
+        return render_template("edit-account.html", is_new = True,
+            target_user = { "user_id": user_id, "display_name": display_name },
+            message_contents = Markup('<p class="error">ユーザー ID <code class="user_id">')
+                + user_id + Markup('</code> は既に存在しています。'))
+
+    return render_template("easy-info.html", summary = "アカウント登録完了",
+        content = Markup('<p>ユーザー ID <code class="user_id">') + user_id
+            + Markup('</code> でアカウントを登録しました。</p>\n')
+            + Markup('<p>パスワードは <code class="password">') + password
+            + Markup('</code> です (ユーザーにお伝えし、速やかに変更するようご案内願います…)。</p>'),
+        prev_url = "/admin", prev_page = "管理者ページ")
+
+@app.route('/admin/account/<user_id>', methods = ['GET'])
+@auth.login_required
+def page_edit_account(user_id):
+    '''
+    アカウント編集フォームページ
+
+    :param str user_id: 編集対象のユーザー ID
+    :return: アカウント編集フォームページテンプレート
+    '''
+    # ユーザーが管理者でなければ forbidden
+    acc = db.get_account(auth.username())
+    if not acc or not acc["is_admin"]:
+        return abort(403)
+
+    return render_template("edit-account.html", is_new = False, is_new_password = False,
+        target_user = db.get_account(user_id))
+
+@app.route('/admin/account/<user_id>', methods = ['POST'])
+@auth.login_required
+def post_edit_account(user_id):
+    '''
+    アカウント編集受信処理
+
+    :param str user_id: 編集対象のユーザー ID
+    :return: アカウント編集フォームページテンプレート
+    '''
+    # ユーザーが管理者でなければ forbidden
+    acc = db.get_account(auth.username())
+    if not acc or not acc["is_admin"]:
+        return abort(403)
+
+    display_name = request.form["dn"]
+    want_new_password = request.form["pwr"] == "1"
+    password = secrets.token_urlsafe(int(conf["Security"]["AutoPasswordLength"])) if want_new_password else None
+
+    user = db.modify_account(user_id, display_name, password)
+
+    return render_template("edit-account.html", is_new = False, target_user = user,
+        is_new_password = want_new_password, password = password,
+        message_contents = Markup('<p class="info"><code class="user_id">') + user_id
+            + Markup('</code> のアカウント情報を更新しました。'))

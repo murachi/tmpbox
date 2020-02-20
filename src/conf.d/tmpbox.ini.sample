@@ -1,9 +1,12 @@
 [User]
-user = tmpbox
-group = tmpbox
+User = tmpbox
+Group = tmpbox
 
 [DB]
-connectionstring = mysql://tmpbox_master:password@localhost/tmpbox
+ConnectionString = mysql://tmpbox_master:password@localhost/tmpbox
 
 [UploadFiles]
-directoryroot = /var/tmpbox
+DirectoryRoot = /var/tmpbox
+
+[Security]
+AutoPasswordLength = 12
