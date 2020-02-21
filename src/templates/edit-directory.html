@@ -50,6 +50,7 @@
             {% for user in users %}
             <li><label for="permission-{{ user['user_id'] }}">
               <input type="checkbox" name="pm" value="{{ user['user_id'] }}"
+                     id="permission-{{ user['user_id'] }}"
                      {% if user["allow"] %}checked="checked"{% endif %}>
               <code class="user_id">{{ user['user_id'] }}</code> ({{ user['display_name'] }})
             </label></li>

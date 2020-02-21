@@ -386,6 +386,35 @@ class TmpboxDB:
             dir.summary = summary
         session.add(dir)
 
+    def update_directory(self, dir_name, expires_days, summary = None):
+        '''
+        ディレクトリの情報を更新する
+
+        :param str dir_name: ディレクトリ名
+        :param int expires_days: デフォルトのファイル保存期間
+        :param str summary: ディレクトリの説明
+        :return: ディレクトリ情報の辞書
+        '''
+        return self.session_scope(
+            lambda s: self.__session_update_directory(s, dir_name, expires_days, summary),
+            True)
+
+    def __session_update_directory(self, session, dir_name, expires_days, summary):
+        '''
+        ディレクトリの情報を更新する
+
+        :param sqlalchemy.orm.session.Session: セッションオブジェクト
+        :param str dir_name: ディレクトリ名
+        :param int expires_days: デフォルトのファイル保存期間
+        :param str summary: ディレクトリの説明
+        :return: ディレクトリ情報の辞書
+        '''
+        directory = session.query(Directory).filter(Directory.directory_name == dir_name).one()
+        directory.expires_days = expires_days
+        directory.summary = summary
+
+        return directory.to_dict(with_relation = False)
+
     def update_permission(self, dir_name, user_ids):
         '''
         ディレクトリの参照権限ユーザーを更新する
@@ -439,7 +468,7 @@ class TmpboxDB:
         '''
         return self.session_scope(
             lambda s: (lambda d: d.to_dict() if d else None)(
-                s.query(Directory).filter(Directory.directory_name == dir_name))
+                s.query(Directory).filter(Directory.directory_name == dir_name).one())
         )
 
     def register_file(self, file_name, user_id, dir_name, expires, summary = None):

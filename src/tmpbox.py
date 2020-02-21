@@ -226,9 +226,7 @@ def post_new_directory():
     expires_days = int(request.form["ed"])
     permissions = [n[1] for n in raw_form if n[0] == "pm"]
 
-    try:
-        db.register_directory(dir_name, expires_days, summary)
-    except TmpboxDBDuplicatedException as exc:
+    def error_page(msg):
         users = db.get_all_accounts()
         for user in users:
             user["allow"] = user["user_id"] in permissions
@@ -239,7 +237,19 @@ def post_new_directory():
                 "expires_days": expires_days,
             },
             users = users,
-            message_contents = Markup('<p class="error">') + ''.join(exc.args) + Markup('</p>'))
+            message_contents = Markup('<p class="error">') + msg + Markup('</p>'))
+
+    if not validator.validateURIUnreserved(dir_name):
+        return error_page(
+            "ディレクトリ名に使用できる文字は半角英数字と次の記号文字のみです: " +
+            "'.' (ピリオド)、 '_' (アンダーバー)、 '-' (ハイフン)、 '~' (チルダ)")
+    if not permissions:
+        return error_page("参照権限ユーザーを一人以上選択してください。")
+
+    try:
+        db.register_directory(dir_name, expires_days, summary)
+    except TmpboxDBDuplicatedException as exc:
+        return error_page(''.join(exc.args))
     os.makedirs(os.path.join(conf["UploadFiles"]["DirectoryRoot"], dir_name), exist_ok = True)
 
     db.update_permission(dir_name, permissions)
@@ -248,3 +258,68 @@ def post_new_directory():
         content = Markup('<p>ディレクトリ <code class="directory">') + dir_name
             + Markup("</code> の作成に成功しました。"),
         prev_url = "/admin", prev_page = "管理者ページ")
+
+@app.route('/admin/directory/<dir_name>', methods = ['GET'])
+@auth.login_required
+def page_edit_directory(dir_name):
+    '''
+    ディレクトリ編集フォームページ
+
+    :return: ディレクトリ編集フォームテンプレート
+    '''
+    users = db.get_all_accounts()
+    # ユーザーが管理者でなければ forbidden
+    if not [n for n in users if n['user_id'] == auth.username()][0]['is_admin']:
+        return abort(403)
+
+    directory = db.get_directory(dir_name)
+    permission = [n["user_id"] for n in directory["permissions"]]
+    for user in users:
+        user["allow"] = user["user_id"] in permission
+
+    return render_template("edit-directory.html", is_new = False,
+        target_dir = directory,
+        users = users)
+
+@app.route('/admin/directory/<dir_name>', methods = ['POST'])
+@auth.login_required
+def post_edit_directory(dir_name):
+    '''
+    ディレクトリ編集受信処理
+
+    :return: ディレクトリ編集フォームテンプレート
+    '''
+    # ユーザーが管理者でなければ forbidden
+    acc = db.get_account(auth.username())
+    if not acc or not acc["is_admin"]:
+        return abort(403)
+
+    # 受信データサイズをチェック (でかすぎる場合はけんもほろろに Bad Request)
+    if request.content_length > int(conf["Security"]["MaxFormLength"]):
+        return abort(400)
+
+    raw_form = urllib.parse.parse_qsl(request.get_data(as_text = True))
+    summary = request.form["sm"]
+    expires_days = int(request.form["ed"])
+    permissions = [n[1] for n in raw_form if n[0] == "pm"]
+
+    users = db.get_all_accounts()
+    for user in users:
+        user["allow"] = user["user_id"] in permissions
+
+    if not permissions:
+        return render_template("edit-directory.html", is_new = False,
+            target_dir = {
+                "directory_name": dir_name,
+                "summary": summary,
+                "expires_days": expires_days,
+            },
+            users = users,
+            message_contents = Markup('<p class="error">') + msg + Markup('</p>'))
+
+    directory = db.update_directory(dir_name, expires_days, summary)
+    db.update_permission(dir_name, permissions)
+
+    return render_template("edit-directory.html", is_new = False,
+        target_dir = directory, users = users,
+        message_contents = Markup('<p class="info">ディレクトリの情報を更新しました。</p>'))
