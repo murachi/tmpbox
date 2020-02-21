@@ -7,6 +7,10 @@ from tmpbox_db_accessor import TmpboxDB
 default_unix_user = "tmpbox"
 default_file_dir = "/var/tmpbox"
 
+default_auto_password_length = 12
+default_expires_days = 14
+max_form_length = 10000
+
 prompt_msg = {
     "ja_JP": {
         "UNIX-user": [
@@ -202,7 +206,7 @@ def validate_DB_connection(conn_str):
 
 if __name__ == '__main__':
     # tmpbox を実行する UNIX アカウントを設定
-    re_name_token = re.compile(r"\w[\w\d_]*\Z", re.I | re.A)
+    re_name_token = re.compile(r"[a-z]\w*\Z", re.I | re.A)
     unix_user = prompt(prompt_msg["UNIX-user"], lambda x: re_name_token.match(x), default_unix_user)
     try:
         pwd.getpwnam(unix_user)
@@ -263,6 +267,7 @@ if __name__ == '__main__':
 
     # 設定ファイル出力
     conf = configparser.ConfigParser()
+    conf.optionxform = str  # オプション名が勝手に小文字に書き換えられてしまうのを防ぐ
     conf["User"] = {
         "User": unix_user,
         "Group": unix_group,
@@ -272,6 +277,11 @@ if __name__ == '__main__':
     }
     conf["UploadFiles"] = {
         "DirectoryRoot": file_dir,
+        "DefaultExpiresDays": default_expires_days,
+    }
+    conf["Security"] = {
+        "AutoPasswordLength": default_auto_password_length,
+        "MaxFormLength": max_form_length,
     }
     with open(os.path.join("src", "conf.d", "tmpbox.ini"), "w") as fout:
         conf.write(fout)

@@ -1,6 +1,6 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine, Column, Boolean, Integer, String, Date, ForeignKey, PrimaryKeyConstraint, Index
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Query, relationship
 from sqlalchemy.orm.session import Session
 from sqlalchemy.sql import functions
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -41,7 +41,6 @@ class Account(Base):
         return {
             "user_id": self.user_id,
             "display_name": self.display_name,
-            "password_hash": self.password_hash,
             "is_admin": self.is_admin,
         }
 
@@ -264,8 +263,9 @@ class TmpboxDB:
         :param str display_name: 表示名
         :param str password: パスワード (平文)
         :param bool is_admin: 管理者権限か?
+        :return: 登録したユーザーアカウント情報の辞書
         '''
-        self.session_scope(
+        return self.session_scope(
             lambda s: self.__session_register_account(s, user_id, display_name, password, is_admin),
             True)
 
@@ -278,6 +278,7 @@ class TmpboxDB:
         :param str display_name: 表示名
         :param str password: パスワード (平文)
         :param bool is_admin: 管理者権限か?
+        :return: 登録したユーザーアカウント情報の辞書
         '''
         # 既存 ID ではないか確認
         existing_user_id = session.query(Account.user_id).filter(Account.user_id == user_id).scalar()
@@ -288,6 +289,38 @@ class TmpboxDB:
         if is_admin:
             account.is_admin = True
         session.add(account)
+
+        return account.to_dict()
+
+    def modify_account(self, user_id, display_name, password = None):
+        '''
+        アカウントの情報を変更する
+
+        :param str user_id: ユーザー ID
+        :param str display_name: 表示名
+        :param str password: パスワード (平文) / 変更しない場合は None を指定する
+        :return: 変更したユーザーアカウント情報の辞書
+        '''
+        return self.session_scope(
+            lambda s: self.__session_modify_account(s, user_id, display_name, password),
+            True)
+
+    def __session_modify_account(self, session, user_id, display_name, password):
+        '''
+        アカウントの情報を変更するセッション処理
+
+        :param sqlalchemy.orm.session.Session session: セッションオブジェクト
+        :param str user_id: ユーザー ID
+        :param str display_name: 表示名
+        :param str password: パスワード (平文) / 変更しない場合は None を指定する
+        :return: 変更したユーザーアカウント情報の辞書
+        '''
+        account = session.query(Account).filter(Account.user_id == user_id).one()
+        account.display_name = display_name
+        if password:
+            account.password_hash = generate_password_hash(password)
+
+        return account.to_dict()
 
     def check_authentication(self, user_id, password):
         '''
@@ -302,6 +335,27 @@ class TmpboxDB:
         return self.session_scope(
             lambda s: (lambda acc: acc.check_password(password) if acc else False)(
                 s.query(Account).filter(Account.user_id == user_id).scalar())
+        )
+
+    def get_account(self, user_id):
+        '''
+        アカウント情報を取得する
+
+        :param str user_id: ユーザー ID
+        :return: アカウント情報の辞書
+        '''
+        return self.session_scope(
+            lambda s: s.query(Account).filter(Account.user_id == user_id).one().to_dict()
+        )
+
+    def get_all_accounts(self):
+        '''
+        アカウント情報をすべて取得する
+
+        :return: アカウント情報辞書のシーケンス
+        '''
+        return self.session_scope(
+            lambda s: [n.to_dict() for n in s.query(Account).order_by(Account.user_id)]
         )
 
     def register_directory(self, dir_name, expires_days, summary = None):
@@ -332,6 +386,35 @@ class TmpboxDB:
             dir.summary = summary
         session.add(dir)
 
+    def update_directory(self, dir_name, expires_days, summary = None):
+        '''
+        ディレクトリの情報を更新する
+
+        :param str dir_name: ディレクトリ名
+        :param int expires_days: デフォルトのファイル保存期間
+        :param str summary: ディレクトリの説明
+        :return: ディレクトリ情報の辞書
+        '''
+        return self.session_scope(
+            lambda s: self.__session_update_directory(s, dir_name, expires_days, summary),
+            True)
+
+    def __session_update_directory(self, session, dir_name, expires_days, summary):
+        '''
+        ディレクトリの情報を更新する
+
+        :param sqlalchemy.orm.session.Session: セッションオブジェクト
+        :param str dir_name: ディレクトリ名
+        :param int expires_days: デフォルトのファイル保存期間
+        :param str summary: ディレクトリの説明
+        :return: ディレクトリ情報の辞書
+        '''
+        directory = session.query(Directory).filter(Directory.directory_name == dir_name).one()
+        directory.expires_days = expires_days
+        directory.summary = summary
+
+        return directory.to_dict(with_relation = False)
+
     def update_permission(self, dir_name, user_ids):
         '''
         ディレクトリの参照権限ユーザーを更新する
@@ -360,7 +443,7 @@ class TmpboxDB:
         :return: ディレクトリ情報辞書のリスト
         '''
         return self.session_scope(
-            lambda s: [n.to_dict() for n in s.query(Directory)]
+            lambda s: [n.to_dict() for n in s.query(Directory).order_by(Directory.directory_name)]
         )
 
     def get_directories_for(self, user_id):
@@ -385,7 +468,7 @@ class TmpboxDB:
         '''
         return self.session_scope(
             lambda s: (lambda d: d.to_dict() if d else None)(
-                s.query(Directory).filter(Directory.directory_name == dir_name))
+                s.query(Directory).filter(Directory.directory_name == dir_name).one())
         )
 
     def register_file(self, file_name, user_id, dir_name, expires, summary = None):

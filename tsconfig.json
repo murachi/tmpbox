@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "es5"
+    , "module": "commonjs"
+    , "lib": ["es5", "dom"]
+    , "declaration": false
+    , "noImplicitAny": false
+    , "removeComments": false
+    , "noLib": false
+    , "preserveConstEnums": true
+    , "suppressImplicitAnyIndexErrors": true
+    , "outDir": "./src/static"
+  }
+  , "formatCodeOptions": {
+    "indentSize": 4
+    , "tabSize": 4
+    , "newLineCharacter": "\r\n"
+    , "convertTabsToSpaces": true
+    , "insertSpaceAfterCommaDelimiter": true
+    , "insertSpaceAfterSemicolonInForStatements": true
+    , "insertSpaceBeforeAndAfterBinaryOperators": true
+    , "insertSpaceAfterKeywordsInControlFlowStatements": true
+    , "insertSpaceAfterFunctionKeywordForAnonymousFunctions": true
+    , "insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": false
+    , "placeOpenBraceOnNewLineForFunctions": true
+    , "placeOpenBraceOnNewLineForControlBlocks": true
+  }
+  , "typedocOptions": {
+    "mode": "modules"
+    , "out": "./docs"
+  }
+  , "compileOnSave": true
+  , "filesGlob": [
+    "./ts/*.ts"
+  ]
+}

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}{% endblock %} - tmpbox</title>
+  <link rel="stylesheet" href="/static/main.css">
+  <script><!--
+    var exports = {};
+    function require(mod_path) {
+      return exports;
+    }
+  --></script>
+  {% block additional_head %}{% endblock %}
+</head>
+<body>
+  <header>
+    <div id="message_area">{{ message_contents }}</div>
+    <h1><a href="/">tmpbox</a></h1>
+    {% block header %}{% endblock %}
+  </header>
+  <section class="main">
+    <h1>{{ self.title() }}</h1>
+    {% block main %}{% endblock %}
+  </section>
+  <footer>
+    <hr>
+    <p><a href="https://github.com/murachi/tmpbox">tmpbox</a></p>
+  </footer>
+</body>
+</html>

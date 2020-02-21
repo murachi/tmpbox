@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}管理者ページ{% endblock %}
+{% block main %}
+<section class="setup account">
+  <h1>アカウント設定</h1>
+  <p>
+    <a href="/admin/new-account">新規アカウント登録...</a>
+  </p>
+  <table>
+    <tr>
+      <th>ユーザーID</th>
+      <th>表示名</th>
+      <th>設定</th>
+    </tr>
+    {% for user in users %}
+    <tr{{ { "class": "admin" if user["is_admin"] else None } | xmlattr }}>
+      <td>{{ user["user_id"] }}</td>
+      <td>{{ user["display_name"] }}</td>
+      <td><a href="/admin/account/{{ user["user_id"] }}">設定...</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
+<section class="setup directory">
+  <h1>ディレクトリ管理</h1>
+  <p>
+    <a href="/admin/new-directory">新規ディレクトリ追加...</a>
+  </p>
+  <table>
+    <tr>
+      <th>ディレクトリ名</th>
+      <th>作成日</th>
+      <th>説明</th>
+      <th>設定</th>
+    </tr>
+    {% for dir in directories %}
+    <tr>
+      <td>{{ dir["directory_name"] }}</td>
+      <td>{{ dir["create_date"] | dispdate }}</td>
+      <td>{{ dir["summary"] | firstline }}</td>
+      <td><a href="/admin/directory/{{ dir["directory_name"] }}">設定...</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
+{% endblock %}

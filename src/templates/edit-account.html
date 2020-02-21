@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}アカウント{% if is_new %}新規登録{% else %}編集{% endif %}{% endblock %}
+{% block additional_head %}
+<script src="/static/validator.js"></script>
+<script src="/static/show-message.js"></script>
+<script src="/static/edit-account.js"></script>
+{% endblock %}
+{% block main %}
+<section class="edit account">
+  <form method="POST" name="account">{# このページの URL へ POST する #}
+    <table>
+      <tr>
+        <th>ユーザー ID</th>
+        <td>
+          {% if is_new %}
+          <input type="text" name="id" value="{% if target_user %}{{ target_user['user_id'] }}{% endif %}"
+                 maxlength="50" class="user_id">
+          {% else %}
+          <code class="user_id">{{ target_user["user_id"] }}</code>
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <th>表示名</th>
+        <td>
+          <input type="text" name="dn" value="{% if target_user %}{{ target_user['display_name'] }}{% endif %}"
+                 maxlength="100" class="display_name">
+        </td>
+      </tr>
+      <tr>
+        <th>パスワード</th>
+        <td>
+          {% if is_new %}
+          新規登録時はパスワードを自動生成します (登録完了時に表示します)。
+          {% else %}
+          {%   if is_new_password %}
+          <p>
+            自動生成パスワード: <code class="new_password">{{ password }}</code><br>
+            (ユーザーにお伝えし、速やかに変更するようご案内願います…)
+          </p>
+          {%   endif %}
+          <p>
+            <label for="password_reset_no">
+              <input type="radio" name="pwr" value="0" checked="checked" id="password_reset_no">
+              変更しない
+            </label>
+            <label for="password_reset_yes">
+              <input type="radio" name="pwr" value="1" id="password_reset_yes">
+              リセットする (自動生成)
+            </label>
+          </p>
+          {% endif %}
+        </td>
+      </tr>
+    </table>
+    <p>
+      <button type="submit">送信</button>
+    </p>
+  </form>
+</section>
+<section class="navigator">
+  <p>
+    <a href="/admin">管理者ページに戻る</a>
+  </p>
+</section>
+{% endblock %}

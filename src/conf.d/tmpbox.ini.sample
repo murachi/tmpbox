@@ -1,9 +1,14 @@
 [User]
-user = tmpbox
-group = tmpbox
+User = tmpbox
+Group = tmpbox
 
 [DB]
-connectionstring = mysql://tmpbox_master:password@localhost/tmpbox
+ConnectionString = mysql://tmpbox_master:password@localhost/tmpbox
 
 [UploadFiles]
-directoryroot = /var/tmpbox
+DirectoryRoot = /var/tmpbox
+DefaultExpiresDays = 14
+
+[Security]
+AutoPasswordLength = 12
+MaxFormLength = 10000

@@ -6,3 +6,24 @@ $font-family: 'Noto Sans JP','Fira Mono',monospace;
 body {
   font-family: $font-family;
 }
+
+#message_area > p {
+  font-size: small;
+  margin: 0;
+  padding: 0.4ex 1ex;
+
+  &.info {
+    background-color: #ccf;
+    color: darkblue;
+  }
+  &.error {
+    background-color: #fcc;
+    color: red;
+  }
+}
+
+.main {
+  input.error, select.error, textarea.error {
+    background-color: yellow;
+  }
+}
