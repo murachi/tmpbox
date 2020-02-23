@@ -1,5 +1,5 @@
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import create_engine, Column, Boolean, Integer, String, Date, ForeignKey, PrimaryKeyConstraint, Index
+from sqlalchemy import create_engine, Column, Boolean, Integer, Unicode, LargeBinary, Date, ForeignKey, PrimaryKeyConstraint, Index
 from sqlalchemy.orm import Query, relationship
 from sqlalchemy.orm.session import Session
 from sqlalchemy.sql import functions
@@ -7,15 +7,37 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 Base = declarative_base()
 
+class SystemData(Base):
+    '''
+    システム共通データテーブルクラス
+
+    :var secret_key: Flask の Session 機能で使用するシークレットキー
+    :var session_expires_minutes: ログインセッションの有効期間 (分単位)
+    '''
+    __tablename__ = 'system_data'
+
+    secret_key = Column(LargeBinary(16), nullable = False)
+    session_expires_minutes = Column(Integer, nullable = False)
+
+    def __init__(self, key, minutes):
+        self.secret_key = key
+        self.session_expires_minutes = minutes
+
+    def to_dict(self):
+        return {
+            "secret_key": self.secret_key,
+            "session_expires_minutes": self.session_expires_minutes,
+        }
+
 class Account(Base):
     '''
     アカウント情報テーブルクラス
     '''
     __tablename__ = 'account_info'
 
-    user_id = Column(String(50), nullable = False, primary_key = True)
-    display_name = Column(String(100), nullable = False)
-    password_hash = Column(String(500), nullable = False)
+    user_id = Column(Unicode(50), nullable = False, primary_key = True)
+    display_name = Column(Unicode(100), nullable = False)
+    password_hash = Column(Unicode(500), nullable = False)
     is_admin = Column(Boolean, nullable = False, default = False)
 
     def __init__(self, user_id, display_name, password):
@@ -59,9 +81,9 @@ class Directory(Base):
     '''
     __tablename__ = 'directory'
 
-    directory_name = Column(String(100), nullable = False, primary_key = True)
+    directory_name = Column(Unicode(100), nullable = False, primary_key = True)
     create_date = Column(Date, nullable = False, default = functions.current_date())
-    summary = Column(String)
+    summary = Column(Unicode)
     expires_days = Column(Integer, nullable = False)
 
     permissions = relationship("Permission", back_populates = "directory")
@@ -107,8 +129,8 @@ class Permission(Base):
     '''
     __tablename__ = 'permission'
 
-    directory_name = Column(String(100), ForeignKey('directory.directory_name'), nullable = False)
-    user_id = Column(String(50), ForeignKey('account_info.user_id'), nullable = False)
+    directory_name = Column(Unicode(100), ForeignKey('directory.directory_name'), nullable = False)
+    user_id = Column(Unicode(50), ForeignKey('account_info.user_id'), nullable = False)
     __table_args__ = (
         PrimaryKeyConstraint('directory_name', 'user_id'),
     )
@@ -151,11 +173,11 @@ class File(Base):
     __tablename__ = 'file_info'
 
     file_id = Column(Integer, nullable = False, primary_key = True, autoincrement = True)
-    origin_file_name = Column(String(500), nullable = False)
-    registered_user_id = Column(String(50), ForeignKey('account_info.user_id'), nullable = False)
+    origin_file_name = Column(Unicode(500), nullable = False)
+    registered_user_id = Column(Unicode(50), ForeignKey('account_info.user_id'), nullable = False)
     registered_date = Column(Date, nullable = False, default = functions.current_date())
-    summary = Column(String)
-    directory_name = Column(String(100), ForeignKey('directory.directory_name'), nullable = False)
+    summary = Column(Unicode)
+    directory_name = Column(Unicode(100), ForeignKey('directory.directory_name'), nullable = False)
     expires = Column(Date, nullable = False)
     is_deleted = Column(Boolean, nullable = False, default = False)
 
