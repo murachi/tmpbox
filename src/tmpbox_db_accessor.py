@@ -1,8 +1,10 @@
+import secrets
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import create_engine, Column, Boolean, Integer, Unicode, LargeBinary, Date, ForeignKey, PrimaryKeyConstraint, Index
+from sqlalchemy import create_engine, Column, Boolean, Integer, Unicode, LargeBinary, Date, \
+    DateTime, CHAR, ForeignKey, PrimaryKeyConstraint, Index
 from sqlalchemy.orm import Query, relationship
 from sqlalchemy.orm.session import Session
-from sqlalchemy.sql import functions
+from sqlalchemy.sql import functions, extract
 from werkzeug.security import generate_password_hash, check_password_hash
 
 Base = declarative_base()
@@ -16,11 +18,12 @@ class SystemData(Base):
     '''
     __tablename__ = 'system_data'
 
+    dummy_id = Column(Integer, nullable = False, primary_key = True)
     secret_key = Column(LargeBinary(16), nullable = False)
     session_expires_minutes = Column(Integer, nullable = False)
 
-    def __init__(self, key, minutes):
-        self.secret_key = key
+    def __init__(self, minutes):
+        self.secret_key = secrets.token_bytes(16)
         self.session_expires_minutes = minutes
 
     def to_dict(self):
@@ -28,6 +31,112 @@ class SystemData(Base):
             "secret_key": self.secret_key,
             "session_expires_minutes": self.session_expires_minutes,
         }
+
+class SessionState(Base):
+    '''
+    ユーザーログインセッション状態管理テーブルクラス
+    '''
+    __tablename__ = 'session_state'
+
+    session_id = Column(CHAR(43), nullable = False, primary_key = True)
+    user_id = Column(Unicode(50), nullable = False)
+    access_dt = Column(DateTime, nullable = False, server_default = functions.now())
+
+    session_datas = relationship("SessionData", back_populates = "session_state")
+
+    def __init__(self, user_id):
+        self.session_id = secrets.token_urlsafe(32)
+        self.user_id = user_id
+
+    def to_dict(self, with_relation = True):
+        '''
+        辞書に変換
+
+        :param bool with_relation: リレーションメンバーの値を含めるか?
+        :return: メンバー値を含む辞書を返す
+        '''
+        result = {
+            "session_id": self.session_id,
+            "user_id": self.user_id,
+            "access_dt": self.access_dt,
+        }
+        if with_relation:
+            result.update({
+                "session_datas": [n.to_dict(with_relation = False) for n in self.session_datas],
+            })
+        return result
+
+    @staticmethod
+    def filter_check_expires(engine, query):
+        '''
+        クエリーに期限切れ判定のフィルターを付加する
+
+        :param sqlalchemy.engine.base.Engine engine: SQLAlchemy エンジンオブジェクト
+        :param sqlalchemy.orm.query.Query query: SQLAlchemy クエリーオブジェクト
+        :return: フィルターを付加したクエリーオブジェクト
+
+        ``query`` に渡すクエリーは既に ``SessionState`` を SELECT し、
+        ``SystemData`` を JOIN しているものとする。
+        '''
+        if engine.name == 'postgresql':
+            query = query.filter(
+                extract('epoch', functions.now() - SessionState.access_dt)
+                    < SystemData.session_expires_minutes * 60)
+        elif engine.name == 'mysql':
+            query = query.filter(
+                func.timestampdiff(text('minute'), SessionState.access_dt, functions.now())
+                    < SystemData.session_expires_minutes)
+        elif engine.name == 'mssql':
+            #memo: そもそも MSSQL って functions.now() 使えるの? func.getdate() とかにしないとダメなんじゃ…
+            query = query.filter(
+                func.dateadd(text('minute'), SystemData.session_expires_minutes, SessionState.access_dt)
+                    > functions.now())
+        elif engine.name == 'oracle':
+            #memo: Oracle も functions.now() じゃなくて func.sysdate() とかにしないとダメな気がする…
+            query = query.filter(
+                SessionState.access_dt + SystemData.session_expires_minutes / 1440 > functions.now())
+        else:
+            raise NotImplementedError("{} はサポート対象外です".format(engine.name))
+
+        return query
+
+class SessionData(Base):
+    '''
+    セッションデータテーブルクラス
+    '''
+    __tablename__ = 'session_data'
+
+    session_id = Column(CHAR(43), ForeignKey("session_state.session_id"), nullable = False)
+    name = Column(Unicode(50), nullable = False)
+    value = Column(Unicode(1000), nullable = False)
+    __table_args__ = (
+        PrimaryKeyConstraint("session_id", "name")
+    )
+
+    session_state = relationship("SessionState", back_populates = "session_datas")
+
+    def __init__(self, session_id, name, value):
+        self.session_id = session_id
+        self.name = name
+        self.value = value
+
+    def to_dict(self, with_relation = True):
+        '''
+        辞書に変換
+
+        :param bool with_relation: リレーションメンバーの値を含めるか?
+        :return: メンバー値を含む辞書を返す
+        '''
+        result = {
+            "session_id": self.session_id,
+            "name": self.name,
+            "value": self.value,
+        }
+        if with_relation:
+            result.update({
+                "session_state": self.session_state.to_dict(with_relation = False),
+            })
+        return result
 
 class Account(Base):
     '''
@@ -38,7 +147,7 @@ class Account(Base):
     user_id = Column(Unicode(50), nullable = False, primary_key = True)
     display_name = Column(Unicode(100), nullable = False)
     password_hash = Column(Unicode(500), nullable = False)
-    is_admin = Column(Boolean, nullable = False, default = False)
+    is_admin = Column(Boolean, nullable = False, server_default = False)
 
     def __init__(self, user_id, display_name, password):
         '''
@@ -82,7 +191,7 @@ class Directory(Base):
     __tablename__ = 'directory'
 
     directory_name = Column(Unicode(100), nullable = False, primary_key = True)
-    create_date = Column(Date, nullable = False, default = functions.current_date())
+    create_date = Column(Date, nullable = False, server_default = functions.current_date())
     summary = Column(Unicode)
     expires_days = Column(Integer, nullable = False)
 
@@ -175,11 +284,11 @@ class File(Base):
     file_id = Column(Integer, nullable = False, primary_key = True, autoincrement = True)
     origin_file_name = Column(Unicode(500), nullable = False)
     registered_user_id = Column(Unicode(50), ForeignKey('account_info.user_id'), nullable = False)
-    registered_date = Column(Date, nullable = False, default = functions.current_date())
+    registered_date = Column(Date, nullable = False, server_default = functions.current_date())
     summary = Column(Unicode)
     directory_name = Column(Unicode(100), ForeignKey('directory.directory_name'), nullable = False)
     expires = Column(Date, nullable = False)
-    is_deleted = Column(Boolean, nullable = False, default = False)
+    is_deleted = Column(Boolean, nullable = False, server_default = False)
 
     __table_args__ = (
         Index("idx_file_active", directory_name, expires.desc(), is_deleted, file_id.desc()),
