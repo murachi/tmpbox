@@ -32,6 +32,56 @@ class SystemData(Base):
             "session_expires_minutes": self.session_expires_minutes,
         }
 
+class Account(Base):
+    '''
+    アカウント情報テーブルクラス
+    '''
+    __tablename__ = 'account_info'
+
+    user_id = Column(Unicode(50), nullable = False, primary_key = True)
+    display_name = Column(Unicode(100), nullable = False)
+    password_hash = Column(Unicode(500), nullable = False)
+    is_admin = Column(Boolean, nullable = False, server_default = False)
+
+    session_states = relationship("SessionState", back_populates = "account")
+
+    def __init__(self, user_id, display_name, password):
+        '''
+        コンストラクタ
+
+        :param str user_id: ユーザー ID
+        :param str display_name: 表示名
+        :param str password: パスワード
+
+        ``password`` にはハッシュ化する前の平文を渡すこと。
+        '''
+        self.user_id = user_id
+        self.display_name = display_name
+        self.password_hash = generate_password_hash(password)
+
+    def to_dict(self):
+        '''
+        辞書に変換
+
+        :return: メンバー値を含む辞書を返す
+
+        セッション状態情報は常に含めない。
+        '''
+        return {
+            "user_id": self.user_id,
+            "display_name": self.display_name,
+            "is_admin": self.is_admin,
+        }
+
+    def check_password(self, password):
+        '''
+        パスワードが一致するかを確認する
+
+        :param str password: パスワード (平文)
+        :return: パスワードが一致する場合は ``True`` を返す。
+        '''
+        return check_password_hash(self.password_hash, password)
+
 class SessionState(Base):
     '''
     ユーザーログインセッション状態管理テーブルクラス
@@ -39,9 +89,10 @@ class SessionState(Base):
     __tablename__ = 'session_state'
 
     session_id = Column(CHAR(43), nullable = False, primary_key = True)
-    user_id = Column(Unicode(50), nullable = False)
+    user_id = Column(Unicode(50), ForeignKey('account_info.user_id'), nullable = False)
     access_dt = Column(DateTime, nullable = False, server_default = functions.now())
 
+    account = relationship("Account", back_populates = "session_states")
     session_datas = relationship("SessionData", back_populates = "session_state")
 
     def __init__(self, user_id):
@@ -62,6 +113,7 @@ class SessionState(Base):
         }
         if with_relation:
             result.update({
+                "account": self.account.to_dict(),
                 "session_datas": [n.to_dict(with_relation = False) for n in self.session_datas],
             })
         return result
@@ -137,52 +189,6 @@ class SessionData(Base):
                 "session_state": self.session_state.to_dict(with_relation = False),
             })
         return result
-
-class Account(Base):
-    '''
-    アカウント情報テーブルクラス
-    '''
-    __tablename__ = 'account_info'
-
-    user_id = Column(Unicode(50), nullable = False, primary_key = True)
-    display_name = Column(Unicode(100), nullable = False)
-    password_hash = Column(Unicode(500), nullable = False)
-    is_admin = Column(Boolean, nullable = False, server_default = False)
-
-    def __init__(self, user_id, display_name, password):
-        '''
-        コンストラクタ
-
-        :param str user_id: ユーザー ID
-        :param str display_name: 表示名
-        :param str password: パスワード
-
-        ``password`` にはハッシュ化する前の平文を渡すこと。
-        '''
-        self.user_id = user_id
-        self.display_name = display_name
-        self.password_hash = generate_password_hash(password)
-
-    def to_dict(self):
-        '''
-        辞書に変換
-
-        :return: メンバー値を含む辞書を返す
-        '''
-        return {
-            "user_id": self.user_id,
-            "display_name": self.display_name,
-            "is_admin": self.is_admin,
-        }
-
-    def check_password(self, password):
-        '''
-        パスワードが一致するかを確認する
-
-        :param str password: パスワード (平文)
-        :return: パスワードが一致する場合は ``True`` を返す。
-        '''
-        return check_password_hash(self.password_hash, password)
 
 class Directory(Base):
     '''
@@ -459,14 +465,35 @@ class TmpboxDB:
 
         :param str user_id: ユーザー ID
         :param str password: パスワード (平文)
-        :return: 認証を確認できた場合は ``True`` を、それ以外の場合は ``False`` を返す。
+        :return: 認証を確認できた場合、ログインセッションを生成し、セッション ID を返す。
+            それ以外の場合は ``None`` を返す。
 
         ``password`` に ``None`` を指定すると ``TypeError`` 例外が送出されるので注意すること。
         '''
         return self.session_scope(
-            lambda s: (lambda acc: acc.check_password(password) if acc else False)(
-                s.query(Account).filter(Account.user_id == user_id).scalar())
-        )
+            lambda s: self.__session_check_authentication(s, user_id, password),
+            True)
+
+    def __session_check_authentication(self, session, user_id, password):
+        '''
+        アカウントの認証を確認するセッション処理
+
+        :param sqlalchemy.orm.session.Session session: セッションオブジェクト
+        :param str user_id: ユーザー ID
+        :param str password: パスワード (平文)
+        :return: 認証を確認できた場合、ログインセッションを生成し、セッション ID を返す。
+            それ以外の場合は ``None`` を返す。
+        '''
+        acc_info = session.query(Account).filter(Account.user_id == user_id).one_or_none()
+        if not acc_info or not acc_info.check_password(password): return
+
+        # 同一ユーザーのログインセッションに関連する情報は全て削除する
+        session.query(SessionData).filter(SessionData.session_state.user_id == user_id).delete();
+        session.query(SessionState).filter(SessionState.user_id == user_id).delete();
+
+        login_session = SessionState(user_id)
+        session.add(login_session)
+        return session.session_id
 
     def get_account(self, user_id):
         '''
