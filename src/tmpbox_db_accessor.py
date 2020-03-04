@@ -516,6 +516,36 @@ class TmpboxDB:
             lambda s: [n.to_dict() for n in s.query(Account).order_by(Account.user_id)]
         )
 
+    def check_login_session(self, session_id):
+        '''
+        ログインセッションの状態を確認する
+
+        :param str session_id: セッション ID
+        :return: 有効なログインセッションが存在する場合、関連する情報を辞書化したものを返す。
+            それ以外の場合は None を返す。
+
+        ログインセッションが有効であれば、アクセス日時を更新し、有効期限を延長する。
+        '''
+        return self.session_scope(
+            lambda s: self.__session_check_login_session(s, session_id), True)
+
+    def __session_check_login_session(self, session, session_id):
+        '''
+        ログインセッションの状態を確認するセッション処理
+
+        :param sqlalchemy.orm.session.Session session: セッションオブジェクト
+        :param str session_id: セッション ID
+        :return: 有効なログインセッションが存在する場合、関連する情報を辞書化したものを返す。
+            それ以外の場合は None を返す。
+        '''
+        login_session = SessionState.filter_check_expires(
+            self.engine,
+            session.query(SessionState).join(SystemData, 1 == SystemData.dummy_id)
+                .filter(SessionState.session_id == session_id)
+        ).one_or_none()
+
+        return login_session.to_dict() if login_session else None
+
     def register_directory(self, dir_name, expires_days, summary = None):
         '''
         ディレクトリの情報を登録する
