@@ -1,5 +1,5 @@
 import os, configparser, secrets, urllib.parse
-from flask import Flask, url_for, render_template, redirect, abort, Markup, request
+from flask import Flask, url_for, render_template, redirect, abort, Markup, request, session
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
 from jinja2 import Markup
@@ -8,12 +8,12 @@ from tmpbox_db_accessor import TmpboxDB, TmpboxDBDuplicatedException
 import tmpbox_validator as validator
 
 app = Flask(__name__)
-auth = HTTPBasicAuth()
 
 conf = configparser.ConfigParser()
 conf.read('conf.d/tmpbox.ini')
 
 db = TmpboxDB(conf["DB"]["ConnectionString"])
+app.secret_key = db.get_secret_key()
 
 @app.template_filter('dispdate')
 def filter_dispdate(d):
@@ -41,9 +41,18 @@ def filter_firstline(text):
     return Markup('<span' + (' class="multilines"' if len(lines) > 1 else '') + '>') \
         + lines[0] + Markup('</span>')
 
-@auth.verify_password
-def verify_password(username, password):
-    return db.check_authentication(username, password)
+def verify_login_session(page_func):
+    '''
+    ログインセッションの状態を確認するデコレータ
+
+    :param function page_func: ログイン状態を確認したいページの処理
+    :return: ログインセッション状態の確認処理を含む関数を返す
+
+    修飾する関数の第1引数にて、ログインセッション状態情報の辞書を受け取るものとする。
+    '''
+    login_session = db.check_login_session(session['token'])
+    return (lambda *args, **kwargs: page_func(login_session, *args, **kwargs)) \
+        if login_session else (lambda: redirect("/login?url={}".format(urllib.parse.quote(request.path, safe = ''))))
 
 @app.route('/')
 def page_index():
@@ -61,19 +70,18 @@ def page_index():
 
     return render_template('index.html', **acc_info)
 
-@app.route('/login')
-@auth.login_required
+@app.route('/login', methods = ['GET'])
 def page_login():
     '''
     認証 URL
 
-    :return: トップページへのリダイレクト
+    :return: 認証フォーム
     '''
     return redirect('/', 303)
 
 @app.route('/admin')
-@auth.login_required
-def page_admin():
+@verify_login_session
+def page_admin(sstate):
     '''
     管理者ページ
 
@@ -87,8 +95,8 @@ def page_admin():
     return render_template("admin.html", users = users, directories = directories)
 
 @app.route('/admin/new-account', methods = ['GET'])
-@auth.login_required
-def page_new_account():
+@verify_login_session
+def page_new_account(sstate):
     '''
     アカウント新規登録フォームページ
 
@@ -102,8 +110,8 @@ def page_new_account():
     return render_template("edit-account.html", is_new = True)
 
 @app.route('/admin/new-account', methods = ['POST'])
-@auth.login_required
-def post_new_account():
+@verify_login_session
+def post_new_account(sstate):
     '''
     アカウント新規登録受信処理
 
@@ -140,8 +148,8 @@ def post_new_account():
         prev_url = "/admin", prev_page = "管理者ページ")
 
 @app.route('/admin/account/<user_id>', methods = ['GET'])
-@auth.login_required
-def page_edit_account(user_id):
+@verify_login_session
+def page_edit_account(sstate, user_id):
     '''
     アカウント編集フォームページ
 
@@ -157,8 +165,8 @@ def page_edit_account(user_id):
         target_user = db.get_account(user_id))
 
 @app.route('/admin/account/<user_id>', methods = ['POST'])
-@auth.login_required
-def post_edit_account(user_id):
+@verify_login_session
+def post_edit_account(sstate, user_id):
     '''
     アカウント編集受信処理
 
@@ -182,8 +190,8 @@ def post_edit_account(user_id):
             + Markup('</code> のアカウント情報を更新しました。'))
 
 @app.route('/admin/new-directory', methods = ['GET'])
-@auth.login_required
-def page_new_directory():
+@verify_login_session
+def page_new_directory(sstate):
     '''
     新規ディレクトリ登録フォームページ
 
@@ -204,8 +212,8 @@ def page_new_directory():
         users = users)
 
 @app.route('/admin/new-directory', methods = ['POST'])
-@auth.login_required
-def post_new_directory():
+@verify_login_session
+def post_new_directory(sstate):
     '''
     新規ディレクトリ登録受信処理
 
@@ -260,8 +268,8 @@ def post_new_directory():
         prev_url = "/admin", prev_page = "管理者ページ")
 
 @app.route('/admin/directory/<dir_name>', methods = ['GET'])
-@auth.login_required
-def page_edit_directory(dir_name):
+@verify_login_session
+def page_edit_directory(sstate, dir_name):
     '''
     ディレクトリ編集フォームページ
 
@@ -282,8 +290,8 @@ def page_edit_directory(dir_name):
         users = users)
 
 @app.route('/admin/directory/<dir_name>', methods = ['POST'])
-@auth.login_required
-def post_edit_directory(dir_name):
+@verify_login_session
+def post_edit_directory(sstate, dir_name):
     '''
     ディレクトリ編集受信処理
 

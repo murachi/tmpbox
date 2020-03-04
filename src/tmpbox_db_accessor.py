@@ -7,6 +7,8 @@ from sqlalchemy.orm.session import Session
 from sqlalchemy.sql import functions, extract
 from werkzeug.security import generate_password_hash, check_password_hash
 
+default_session_expires_minutes = 120
+
 Base = declarative_base()
 
 class SystemData(Base):
@@ -23,8 +25,12 @@ class SystemData(Base):
     session_expires_minutes = Column(Integer, nullable = False)
 
     def __init__(self, minutes):
+        self.update(minutes)
+
+    def update(self, minutes = None):
         self.secret_key = secrets.token_bytes(16)
-        self.session_expires_minutes = minutes
+        if minutes:
+            self.session_expires_minutes = minutes
 
     def to_dict(self):
         return {
@@ -391,6 +397,37 @@ class TmpboxDB:
             self.engine = create_engine(self.connection_string)
 
         Base.metadata.create_all(self.engine)
+
+    def setup_system(self, minutes = None):
+        '''
+        システム共通データを設定する
+
+        :param int minutes: ログインセッションの有効期間 (分単位)、変更しない場合は None を指定
+        '''
+        self.session_scope(
+            lambda s: self.__session_setup_system(s, minutes), True)
+
+    def __session_setup_system(self, session, minutes):
+        '''
+        システム共通データを設定する
+
+        :param sqlalchemy.orm.session.Session session: セッションオブジェクト
+        :param int minutes: ログインセッションの有効期間 (分単位)、変更しない場合は None を指定
+        '''
+        sys_data = session.query(SystemData).one_or_none()
+        if sys_data:
+            sys_data.update(minutes)
+        else:
+            sys_data = SystemData(minutes or default_session_expires_minutes)
+            session.add(sys_data)
+
+    def get_secret_key(self):
+        '''
+        Flask の Session 機能で使用するシークレットキーを取得する
+
+        :return: シークレットキーの byte 列
+        '''
+        return self.session_scope(lambda s: s.query(SystemData.secret_key).scalar())
 
     def register_account(self, user_id, display_name, password, is_admin = False):
         '''
