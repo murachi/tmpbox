@@ -1,4 +1,4 @@
-import os, configparser, secrets, urllib.parse
+import os, sys, configparser, secrets, urllib.parse
 from flask import Flask, url_for, render_template, redirect, abort, Markup, request, session
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -41,7 +41,7 @@ def filter_firstline(text):
     return Markup('<span' + (' class="multilines"' if len(lines) > 1 else '') + '>') \
         + lines[0] + Markup('</span>')
 
-def verify_login_session(page_func):
+def verify_login_session():
     '''
     ログインセッションの状態を確認するデコレータ
 
@@ -50,9 +50,12 @@ def verify_login_session(page_func):
 
     修飾する関数の第1引数にて、ログインセッション状態情報の辞書を受け取るものとする。
     '''
-    login_session = db.check_login_session(session['token'])
-    return (lambda *args, **kwargs: page_func(login_session, *args, **kwargs)) \
-        if login_session else (lambda: redirect("/login?url={}".format(urllib.parse.quote(request.path, safe = ''))))
+    login_session = db.check_login_session(session.get('token', None))
+    return (
+        login_session,
+        None if login_session
+            else redirect("/login?url={}".format(urllib.parse.quote(request.path, safe = ""))),
+    )
 
 @app.route('/')
 def page_index():
@@ -64,9 +67,12 @@ def page_index():
     ログイン済みであればアカウントに参照権限のあるディレクトリのリストを表示する。
     それ以外の場合、ログインページへのリンクを表示する。
     '''
-    user_id, acc_info = auth.username(), {}
-    if user_id:
-        acc_info = db.get_account(user_id)
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+
+    acc_info = {}
+    if login_session:
+        acc_info = db.get_account(login_session["user_id"])
 
     return render_template('index.html', **acc_info)
 
@@ -77,48 +83,78 @@ def page_login():
 
     :return: 認証フォーム
     '''
-    return redirect('/', 303)
+    location_path = request.args.get('url', '')
+    return render_template('login.html', url = location_path)
+
+@app.route('/login', methods = ['POST'])
+def post_login():
+    '''
+    認証受信処理
+
+    :return: 遷移元ロケーションへのリダイレクト
+    '''
+    location_path = request.form.get('loc', '') or '/'
+    user_id = request.form['id']
+    password = request.form['pw']
+
+    token = db.check_authentication(user_id, password)
+
+    if token:
+        session["token"] = token
+        return redirect(location_path)
+    else:
+        return render_template('login.html', url = location_path, user_id = user_id,
+            message_contents = Markup('<p class="error">ユーザー ID またはパスワードが一致しません。</p>'))
 
 @app.route('/admin')
-@verify_login_session
-def page_admin(sstate):
+def page_admin():
     '''
     管理者ページ
 
     :return: 管理者ページテンプレート
     '''
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+    if not login_session: return redirect_obj
+
     users = db.get_all_accounts()
     # ユーザーが管理者でなければ forbidden
-    if not [n for n in users if n['user_id'] == auth.username()][0]['is_admin']:
+    if not [n for n in users if n['user_id'] == login_session["user_id"]][0]['is_admin']:
         return abort(403)
     directories = db.get_directories()
     return render_template("admin.html", users = users, directories = directories)
 
 @app.route('/admin/new-account', methods = ['GET'])
-@verify_login_session
-def page_new_account(sstate):
+def page_new_account():
     '''
     アカウント新規登録フォームページ
 
     :return: アカウント編集フォームページテンプレート
     '''
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+    if not login_session: return redirect_obj
+
     # ユーザーが管理者でなければ forbidden
-    acc = db.get_account(auth.username())
+    acc = db.get_account(login_session["user_id"])
     if not acc or not acc["is_admin"]:
         return abort(403)
 
     return render_template("edit-account.html", is_new = True)
 
 @app.route('/admin/new-account', methods = ['POST'])
-@verify_login_session
-def post_new_account(sstate):
+def post_new_account():
     '''
     アカウント新規登録受信処理
 
     :return: 登録完了のアナウンスページ
     '''
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+    if not login_session: return redirect_obj
+
     # ユーザーが管理者でなければ forbidden
-    acc = db.get_account(auth.username())
+    acc = db.get_account(login_session["user_id"])
     if not acc or not acc["is_admin"]:
         return abort(403)
 
@@ -148,16 +184,19 @@ def post_new_account(sstate):
         prev_url = "/admin", prev_page = "管理者ページ")
 
 @app.route('/admin/account/<user_id>', methods = ['GET'])
-@verify_login_session
-def page_edit_account(sstate, user_id):
+def page_edit_account(user_id):
     '''
     アカウント編集フォームページ
 
     :param str user_id: 編集対象のユーザー ID
     :return: アカウント編集フォームページテンプレート
     '''
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+    if not login_session: return redirect_obj
+
     # ユーザーが管理者でなければ forbidden
-    acc = db.get_account(auth.username())
+    acc = db.get_account(login_session["user_id"])
     if not acc or not acc["is_admin"]:
         return abort(403)
 
@@ -165,16 +204,19 @@ def page_edit_account(sstate, user_id):
         target_user = db.get_account(user_id))
 
 @app.route('/admin/account/<user_id>', methods = ['POST'])
-@verify_login_session
-def post_edit_account(sstate, user_id):
+def post_edit_account(user_id):
     '''
     アカウント編集受信処理
 
     :param str user_id: 編集対象のユーザー ID
     :return: アカウント編集フォームページテンプレート
     '''
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+    if not login_session: return redirect_obj
+
     # ユーザーが管理者でなければ forbidden
-    acc = db.get_account(auth.username())
+    acc = db.get_account(login_session["user_id"])
     if not acc or not acc["is_admin"]:
         return abort(403)
 
@@ -190,16 +232,19 @@ def post_edit_account(sstate, user_id):
             + Markup('</code> のアカウント情報を更新しました。'))
 
 @app.route('/admin/new-directory', methods = ['GET'])
-@verify_login_session
-def page_new_directory(sstate):
+def page_new_directory():
     '''
     新規ディレクトリ登録フォームページ
 
     :return: 新規ディレクトリ登録フォームテンプレート
     '''
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+    if not login_session: return redirect_obj
+
     users = db.get_all_accounts()
     # ユーザーが管理者でなければ forbidden
-    if not [n for n in users if n['user_id'] == auth.username()][0]['is_admin']:
+    if not [n for n in users if n['user_id'] == login_session["user_id"]][0]['is_admin']:
         return abort(403)
 
     for user in users: user["allow"] = False
@@ -212,15 +257,18 @@ def page_new_directory(sstate):
         users = users)
 
 @app.route('/admin/new-directory', methods = ['POST'])
-@verify_login_session
-def post_new_directory(sstate):
+def post_new_directory():
     '''
     新規ディレクトリ登録受信処理
 
     :return: 登録完了のアナウンスページ
     '''
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+    if not login_session: return redirect_obj
+
     # ユーザーが管理者でなければ forbidden
-    acc = db.get_account(auth.username())
+    acc = db.get_account(login_session["user_id"])
     if not acc or not acc["is_admin"]:
         return abort(403)
 
@@ -268,16 +316,19 @@ def post_new_directory(sstate):
         prev_url = "/admin", prev_page = "管理者ページ")
 
 @app.route('/admin/directory/<dir_name>', methods = ['GET'])
-@verify_login_session
-def page_edit_directory(sstate, dir_name):
+def page_edit_directory(dir_name):
     '''
     ディレクトリ編集フォームページ
 
     :return: ディレクトリ編集フォームテンプレート
     '''
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+    if not login_session: return redirect_obj
+
     users = db.get_all_accounts()
     # ユーザーが管理者でなければ forbidden
-    if not [n for n in users if n['user_id'] == auth.username()][0]['is_admin']:
+    if not [n for n in users if n['user_id'] == login_session["user_id"]][0]['is_admin']:
         return abort(403)
 
     directory = db.get_directory(dir_name)
@@ -290,15 +341,18 @@ def page_edit_directory(sstate, dir_name):
         users = users)
 
 @app.route('/admin/directory/<dir_name>', methods = ['POST'])
-@verify_login_session
-def post_edit_directory(sstate, dir_name):
+def post_edit_directory(dir_name):
     '''
     ディレクトリ編集受信処理
 
     :return: ディレクトリ編集フォームテンプレート
     '''
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+    if not login_session: return redirect_obj
+
     # ユーザーが管理者でなければ forbidden
-    acc = db.get_account(auth.username())
+    acc = db.get_account(login_session["user_id"])
     if not acc or not acc["is_admin"]:
         return abort(403)
 

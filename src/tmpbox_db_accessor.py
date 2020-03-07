@@ -1,13 +1,11 @@
 import secrets
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine, Column, Boolean, Integer, Unicode, LargeBinary, Date, \
-    DateTime, CHAR, ForeignKey, PrimaryKeyConstraint, Index
+    DateTime, CHAR, ForeignKey, PrimaryKeyConstraint, Index, true, false
 from sqlalchemy.orm import Query, relationship
 from sqlalchemy.orm.session import Session
 from sqlalchemy.sql import functions, extract
 from werkzeug.security import generate_password_hash, check_password_hash
-
-default_session_expires_minutes = 120
 
 Base = declarative_base()
 
@@ -47,9 +45,10 @@ class Account(Base):
     user_id = Column(Unicode(50), nullable = False, primary_key = True)
     display_name = Column(Unicode(100), nullable = False)
     password_hash = Column(Unicode(500), nullable = False)
-    is_admin = Column(Boolean, nullable = False, server_default = False)
+    is_admin = Column(Boolean, nullable = False, server_default = false())
 
-    session_states = relationship("SessionState", back_populates = "account")
+    session_states = relationship("SessionState", back_populates = "account", cascade = "all, delete-orphan")
+    permissions = relationship("Permission", back_populates = "user", cascade = "all, delete-orphan")
 
     def __init__(self, user_id, display_name, password):
         '''
@@ -99,7 +98,7 @@ class SessionState(Base):
     access_dt = Column(DateTime, nullable = False, server_default = functions.now())
 
     account = relationship("Account", back_populates = "session_states")
-    session_datas = relationship("SessionData", back_populates = "session_state")
+    session_datas = relationship("SessionData", back_populates = "session_state", cascade = "all, delete-orphan")
 
     def __init__(self, user_id):
         self.session_id = secrets.token_urlsafe(32)
@@ -168,7 +167,7 @@ class SessionData(Base):
     name = Column(Unicode(50), nullable = False)
     value = Column(Unicode(1000), nullable = False)
     __table_args__ = (
-        PrimaryKeyConstraint("session_id", "name")
+        PrimaryKeyConstraint("session_id", "name"),
     )
 
     session_state = relationship("SessionState", back_populates = "session_datas")
@@ -207,7 +206,8 @@ class Directory(Base):
     summary = Column(Unicode)
     expires_days = Column(Integer, nullable = False)
 
-    permissions = relationship("Permission", back_populates = "directory")
+    permissions = relationship("Permission", back_populates = "directory", cascade = "all, delete-orphan")
+    files = relationship("File", back_populates = "directory", cascade = "all, delete-orphan")
 
     def __init__(self, dir_name, expires_days):
         '''
@@ -229,6 +229,10 @@ class Directory(Base):
 
         :param bool with_relation: リレーションメンバーの値を含めるか?
         :return: メンバー値を含む辞書を返す
+
+        ``with_relation == True`` であっても ``files`` は含めないものとする。
+        ディレクトリに表示するファイルの一覧を取得するには、
+        TmpboxDB.get_active_files() メソッドを使用すること。
         '''
         result = {
             "directory_name": self.directory_name,
@@ -257,7 +261,7 @@ class Permission(Base):
     )
 
     directory = relationship('Directory', back_populates = 'permissions')
-    user = relationship('Account')
+    user = relationship('Account', back_populates = "permissions")
 
     def __init__(self, dir_name, user_id):
         '''
@@ -295,19 +299,18 @@ class File(Base):
 
     file_id = Column(Integer, nullable = False, primary_key = True, autoincrement = True)
     origin_file_name = Column(Unicode(500), nullable = False)
-    registered_user_id = Column(Unicode(50), ForeignKey('account_info.user_id'), nullable = False)
+    registered_user_id = Column(Unicode(50), nullable = False)
     registered_date = Column(Date, nullable = False, server_default = functions.current_date())
     summary = Column(Unicode)
     directory_name = Column(Unicode(100), ForeignKey('directory.directory_name'), nullable = False)
     expires = Column(Date, nullable = False)
-    is_deleted = Column(Boolean, nullable = False, server_default = False)
+    is_deleted = Column(Boolean, nullable = False, server_default = false())
 
     __table_args__ = (
         Index("idx_file_active", directory_name, expires.desc(), is_deleted, file_id.desc()),
     )
 
-    registered_user = relationship('Account')
-    directory = relationship('Directory')
+    directory = relationship('Directory', back_populates = "files")
 
     def __init__(self, file_name, user_id, dir_name, expires):
         '''
@@ -323,13 +326,13 @@ class File(Base):
         self.directory_name = dir_name
         self.expires = expires
 
-    def to_dict(self):
+    def to_dict(self, with_relation = True):
         '''
         辞書に変換
 
         :return: メンバー値を含む辞書を返す
         '''
-        return {
+        result = {
             "file_id": self.file_id,
             "origin_file_name": self.origin_file_name,
             "registered_user_id": self.registered_user_id,
@@ -340,6 +343,12 @@ class File(Base):
             "expires": self.expires,
             "is_deleted": self.is_deleted,
         }
+        if with_relation:
+            result.update({
+                "directory": self.directory.to_dict(with_relation = False),
+            })
+
+        return result
 
 class TmpboxDBDuplicatedException(ValueError):
     '''
@@ -418,7 +427,7 @@ class TmpboxDB:
         if sys_data:
             sys_data.update(minutes)
         else:
-            sys_data = SystemData(minutes or default_session_expires_minutes)
+            sys_data = SystemData(minutes)
             session.add(sys_data)
 
     def get_secret_key(self):
@@ -525,12 +534,12 @@ class TmpboxDB:
         if not acc_info or not acc_info.check_password(password): return
 
         # 同一ユーザーのログインセッションに関連する情報は全て削除する
-        session.query(SessionData).filter(SessionData.session_state.user_id == user_id).delete();
+        # (CASCADE 設定により、関連する SessionData も削除される)
         session.query(SessionState).filter(SessionState.user_id == user_id).delete();
 
         login_session = SessionState(user_id)
         session.add(login_session)
-        return session.session_id
+        return login_session.session_id
 
     def get_account(self, user_id):
         '''
@@ -563,6 +572,8 @@ class TmpboxDB:
 
         ログインセッションが有効であれば、アクセス日時を更新し、有効期限を延長する。
         '''
+        if not session_id:
+            return None
         return self.session_scope(
             lambda s: self.__session_check_login_session(s, session_id), True)
 
@@ -580,6 +591,13 @@ class TmpboxDB:
             session.query(SessionState).join(SystemData, 1 == SystemData.dummy_id)
                 .filter(SessionState.session_id == session_id)
         ).one_or_none()
+
+        if not login_session:
+            return None
+
+        login_session.access_dt = functions.now()
+        session.commit()
+        session.refresh(login_session)
 
         return login_session.to_dict() if login_session else None
 
@@ -668,7 +686,7 @@ class TmpboxDB:
         :return: ディレクトリ情報辞書のリスト
         '''
         return self.session_scope(
-            lambda s: [n.to_dict() for n in s.query(Directory).order_by(Directory.directory_name)]
+            lambda s: [n.to_dict(with_relation = False) for n in s.query(Directory).order_by(Directory.directory_name)]
         )
 
     def get_directories_for(self, user_id):
