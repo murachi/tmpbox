@@ -46,9 +46,7 @@ def verify_login_session():
     ログインセッションの状態を確認するデコレータ
 
     :param function page_func: ログイン状態を確認したいページの処理
-    :return: ログインセッション状態の確認処理を含む関数を返す
-
-    修飾する関数の第1引数にて、ログインセッション状態情報の辞書を受け取るものとする。
+    :return: ログインセッション状態情報の辞書
     '''
     login_session = db.check_login_session(session.get('token', None))
     return (
@@ -56,6 +54,35 @@ def verify_login_session():
         None if login_session
             else redirect("/login?url={}".format(urllib.parse.quote(request.path, safe = ""))),
     )
+
+def gen_form_token(login_session, form_name):
+    '''
+    フォーム受信用のワンタイムトークンを生成する
+
+    :param dict login_session: ログインセッション状態の辞書
+    :param str form_name: セッションデータキーに用いるフォーム名称
+    '''
+    data = {n["name"]: n["value"] for n in login_session["session_datas"]}
+    token = secrets.token_urlsafe(8)
+    data.update({"{}-token".format(form_name): token})
+    db.modify_session_data(login_session["session_id"], data)
+    return token
+
+def verify_form_token(login_session, form_name, token):
+    '''
+    フォーム受信時のワンタイムトークンを検証する
+
+    :param dict login_session: ログインセッション状態の辞書
+    :param str form_name: セッションデータキーに用いるフォーム名称
+    :param str token: フォームデータに含まれるトークン
+    :return: トークンの照合に成功した場合は ``True`` を、それ以外の場合は ``False`` を返す。
+    '''
+    key_name = "{}-token".format(form_name)
+    target_token = [n["value"] for n in login_session["session_datas"] if n["name"] == key_name]
+    if not target_token or target_token[0] != token: return False
+
+    db.delete_session_data(login_session["session_id"], key_name)
+    return True
 
 @app.route('/')
 def page_index():
@@ -140,7 +167,8 @@ def page_new_account():
     if not acc or not acc["is_admin"]:
         return abort(403)
 
-    return render_template("edit-account.html", is_new = True)
+    form_token = gen_form_token(login_session, "new-account")
+    return render_template("edit-account.html", is_new = True, form_token = form_token)
 
 @app.route('/admin/new-account', methods = ['POST'])
 def post_new_account():
@@ -157,6 +185,11 @@ def post_new_account():
     acc = db.get_account(login_session["user_id"])
     if not acc or not acc["is_admin"]:
         return abort(403)
+
+    # フォームトークンの検証に失敗した場合は Bad Request
+    form_token = request.form["tk"]
+    if not verify_form_token(login_session, "new-account", form_token):
+        return abort(400)
 
     user_id = request.form["id"]
     display_name = request.form["dn"]
@@ -200,8 +233,9 @@ def page_edit_account(user_id):
     if not acc or not acc["is_admin"]:
         return abort(403)
 
-    return render_template("edit-account.html", is_new = False, is_new_password = False,
-        target_user = db.get_account(user_id))
+    form_token = gen_form_token(login_session, "edit-account")
+    return render_template("edit-account.html", is_new = False, form_token = form_token,
+        is_new_password = False, target_user = db.get_account(user_id))
 
 @app.route('/admin/account/<user_id>', methods = ['POST'])
 def post_edit_account(user_id):
@@ -220,14 +254,20 @@ def post_edit_account(user_id):
     if not acc or not acc["is_admin"]:
         return abort(403)
 
+    # フォームトークンの検証に失敗した場合は Bad Request
+    form_token = request.form["tk"]
+    if not verify_form_token(login_session, "edit-account", form_token):
+        return abort(400)
+
     display_name = request.form["dn"]
     want_new_password = request.form["pwr"] == "1"
     password = secrets.token_urlsafe(int(conf["Security"]["AutoPasswordLength"])) if want_new_password else None
 
     user = db.modify_account(user_id, display_name, password)
 
-    return render_template("edit-account.html", is_new = False, target_user = user,
-        is_new_password = want_new_password, password = password,
+    form_token = gen_form_token(login_session, "edit-account")
+    return render_template("edit-account.html", is_new = False, form_token = form_token,
+        target_user = user, is_new_password = want_new_password, password = password,
         message_contents = Markup('<p class="info"><code class="user_id">') + user_id
             + Markup('</code> のアカウント情報を更新しました。'))
 
@@ -246,9 +286,10 @@ def page_new_directory():
     # ユーザーが管理者でなければ forbidden
     if not [n for n in users if n['user_id'] == login_session["user_id"]][0]['is_admin']:
         return abort(403)
-
     for user in users: user["allow"] = False
-    return render_template("edit-directory.html", is_new = True,
+
+    form_token = gen_form_token(login_session, "new-directory")
+    return render_template("edit-directory.html", is_new = True, form_token = form_token,
         target_dir = {
             "directory_name": "",
             "summary": "",
@@ -277,6 +318,12 @@ def post_new_directory():
         return abort(400)
 
     raw_form = urllib.parse.parse_qsl(request.get_data(as_text = True))
+
+    # フォームトークンの検証に失敗した場合は Bad Request
+    form_token = request.form["tk"]
+    if not verify_form_token(login_session, "new-directory", form_token):
+        return abort(400)
+
     dir_name = request.form["nm"]
     summary = request.form["sm"]
     expires_days = int(request.form["ed"])
@@ -286,7 +333,8 @@ def post_new_directory():
         users = db.get_all_accounts()
         for user in users:
             user["allow"] = user["user_id"] in permissions
-        return render_template("edit-directory.html", is_new = True,
+        form_token = gen_form_token(login_session, "new-directory")
+        return render_template("edit-directory.html", is_new = True, form_token = form_token,
             target_dir = {
                 "directory_name": dir_name,
                 "summary": summary,
@@ -336,9 +384,9 @@ def page_edit_directory(dir_name):
     for user in users:
         user["allow"] = user["user_id"] in permission
 
-    return render_template("edit-directory.html", is_new = False,
-        target_dir = directory,
-        users = users)
+    form_token = gen_form_token(login_session, "edit-directory")
+    return render_template("edit-directory.html", is_new = False, form_token = form_token,
+        target_dir = directory, users = users)
 
 @app.route('/admin/directory/<dir_name>', methods = ['POST'])
 def post_edit_directory(dir_name):
@@ -361,6 +409,12 @@ def post_edit_directory(dir_name):
         return abort(400)
 
     raw_form = urllib.parse.parse_qsl(request.get_data(as_text = True))
+
+    # フォームトークンの検証に失敗した場合は Bad Request
+    form_token = request.form["tk"]
+    if not verify_form_token(login_session, "edit-directory", form_token):
+        return abort(400)
+
     summary = request.form["sm"]
     expires_days = int(request.form["ed"])
     permissions = [n[1] for n in raw_form if n[0] == "pm"]
@@ -369,8 +423,9 @@ def post_edit_directory(dir_name):
     for user in users:
         user["allow"] = user["user_id"] in permissions
 
+    form_token = gen_form_token(login_session, "edit-directory")
     if not permissions:
-        return render_template("edit-directory.html", is_new = False,
+        return render_template("edit-directory.html", is_new = False, form_token = form_token,
             target_dir = {
                 "directory_name": dir_name,
                 "summary": summary,
@@ -382,6 +437,6 @@ def post_edit_directory(dir_name):
     directory = db.update_directory(dir_name, expires_days, summary)
     db.update_permission(dir_name, permissions)
 
-    return render_template("edit-directory.html", is_new = False,
+    return render_template("edit-directory.html", is_new = False, form_token = form_token,
         target_dir = directory, users = users,
         message_contents = Markup('<p class="info">ディレクトリの情報を更新しました。</p>'))

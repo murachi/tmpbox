@@ -601,6 +601,39 @@ class TmpboxDB:
 
         return login_session.to_dict() if login_session else None
 
+    def modify_session_data(self, session_id, data):
+        '''
+        ログインセッションデータを変更する
+
+        :param str session_id: ログインセッション ID
+        :param dict data: ログインセッションデータの辞書
+        '''
+        self.session_scope(lambda s: self.__session_modify_session_data(s, session_id, data), True)
+
+    def __session_modify_session_data(self, session, session_id, data):
+        '''
+        ログインセッションデータを変更するセッション処理
+
+        :param sqlalchemy.orm.session.Session session: セッションオブジェクト
+        :param str session_id: ログインセッション ID
+        :param dict data: ログインセッションデータの辞書
+        '''
+        session.query(SessionData).filter(SessionData.session_id == session_id).delete()
+        session.add_all([SessionData(session_id, k, v) for k, v in data.items()])
+
+    def delete_session_data(self, session_id, data_name):
+        '''
+        特定の名前のログインセッションデータを削除する
+
+        :param str session_id: ログインセッション ID
+        :param dict data_name: ログインセッションデータのキー名称
+        '''
+        self.session_scope(
+            lambda s: s.query(SessionData)
+                .filter(SessionData.session_id == session_id, SessionData.name == data_name)
+                .delete(),
+            True)
+
     def register_directory(self, dir_name, expires_days, summary = None):
         '''
         ディレクトリの情報を登録する

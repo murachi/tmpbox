@@ -8,6 +8,7 @@
 {% block main %}
 <section class="edit directory">
   <form method="POST" name="directory">{# このページの URL へ POST する #}
+    <input type="hidden" name="tk" value="{{ form_token }}">
     <table>
       <tr>
         <th>ディレクトリ名</th>
