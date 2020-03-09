@@ -8,6 +8,7 @@
 {% block main %}
 <section class="edit account">
   <form method="POST" name="account">{# このページの URL へ POST する #}
+    <input type="hidden" name="tk" value="{{ form_token }}">
     <table>
       <tr>
         <th>ユーザー ID</th>

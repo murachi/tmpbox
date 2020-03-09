@@ -1,11 +1,40 @@
+import secrets
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import create_engine, Column, Boolean, Integer, String, Date, ForeignKey, PrimaryKeyConstraint, Index
+from sqlalchemy import create_engine, Column, Boolean, Integer, Unicode, LargeBinary, Date, \
+    DateTime, CHAR, ForeignKey, PrimaryKeyConstraint, Index, true, false
 from sqlalchemy.orm import Query, relationship
 from sqlalchemy.orm.session import Session
-from sqlalchemy.sql import functions
+from sqlalchemy.sql import functions, extract
 from werkzeug.security import generate_password_hash, check_password_hash
 
 Base = declarative_base()
+
+class SystemData(Base):
+    '''
+    システム共通データテーブルクラス
+
+    :var secret_key: Flask の Session 機能で使用するシークレットキー
+    :var session_expires_minutes: ログインセッションの有効期間 (分単位)
+    '''
+    __tablename__ = 'system_data'
+
+    dummy_id = Column(Integer, nullable = False, primary_key = True)
+    secret_key = Column(LargeBinary(16), nullable = False)
+    session_expires_minutes = Column(Integer, nullable = False)
+
+    def __init__(self, minutes):
+        self.update(minutes)
+
+    def update(self, minutes = None):
+        self.secret_key = secrets.token_bytes(16)
+        if minutes:
+            self.session_expires_minutes = minutes
+
+    def to_dict(self):
+        return {
+            "secret_key": self.secret_key,
+            "session_expires_minutes": self.session_expires_minutes,
+        }
 
 class Account(Base):
     '''
@@ -13,10 +42,13 @@ class Account(Base):
     '''
     __tablename__ = 'account_info'
 
-    user_id = Column(String(50), nullable = False, primary_key = True)
-    display_name = Column(String(100), nullable = False)
-    password_hash = Column(String(500), nullable = False)
-    is_admin = Column(Boolean, nullable = False, default = False)
+    user_id = Column(Unicode(50), nullable = False, primary_key = True)
+    display_name = Column(Unicode(100), nullable = False)
+    password_hash = Column(Unicode(500), nullable = False)
+    is_admin = Column(Boolean, nullable = False, server_default = false())
+
+    session_states = relationship("SessionState", back_populates = "account", cascade = "all, delete-orphan")
+    permissions = relationship("Permission", back_populates = "user", cascade = "all, delete-orphan")
 
     def __init__(self, user_id, display_name, password):
         '''
@@ -37,6 +69,8 @@ class Account(Base):
         辞書に変換
 
         :return: メンバー値を含む辞書を返す
+
+        セッション状態情報は常に含めない。
         '''
         return {
             "user_id": self.user_id,
@@ -53,18 +87,127 @@ class Account(Base):
         '''
         return check_password_hash(self.password_hash, password)
 
+class SessionState(Base):
+    '''
+    ユーザーログインセッション状態管理テーブルクラス
+    '''
+    __tablename__ = 'session_state'
+
+    session_id = Column(CHAR(43), nullable = False, primary_key = True)
+    user_id = Column(Unicode(50), ForeignKey('account_info.user_id'), nullable = False)
+    access_dt = Column(DateTime, nullable = False, server_default = functions.now())
+
+    account = relationship("Account", back_populates = "session_states")
+    session_datas = relationship("SessionData", back_populates = "session_state", cascade = "all, delete-orphan")
+
+    def __init__(self, user_id):
+        self.session_id = secrets.token_urlsafe(32)
+        self.user_id = user_id
+
+    def to_dict(self, with_relation = True):
+        '''
+        辞書に変換
+
+        :param bool with_relation: リレーションメンバーの値を含めるか?
+        :return: メンバー値を含む辞書を返す
+        '''
+        result = {
+            "session_id": self.session_id,
+            "user_id": self.user_id,
+            "access_dt": self.access_dt,
+        }
+        if with_relation:
+            result.update({
+                "account": self.account.to_dict(),
+                "session_datas": [n.to_dict(with_relation = False) for n in self.session_datas],
+            })
+        return result
+
+    @staticmethod
+    def filter_check_expires(engine, query):
+        '''
+        クエリーに期限切れ判定のフィルターを付加する
+
+        :param sqlalchemy.engine.base.Engine engine: SQLAlchemy エンジンオブジェクト
+        :param sqlalchemy.orm.query.Query query: SQLAlchemy クエリーオブジェクト
+        :return: フィルターを付加したクエリーオブジェクト
+
+        ``query`` に渡すクエリーは既に ``SessionState`` を SELECT し、
+        ``SystemData`` を JOIN しているものとする。
+        '''
+        if engine.name == 'postgresql':
+            query = query.filter(
+                extract('epoch', functions.now() - SessionState.access_dt)
+                    < SystemData.session_expires_minutes * 60)
+        elif engine.name == 'mysql':
+            query = query.filter(
+                func.timestampdiff(text('minute'), SessionState.access_dt, functions.now())
+                    < SystemData.session_expires_minutes)
+        elif engine.name == 'mssql':
+            #memo: そもそも MSSQL って functions.now() 使えるの? func.getdate() とかにしないとダメなんじゃ…
+            query = query.filter(
+                func.dateadd(text('minute'), SystemData.session_expires_minutes, SessionState.access_dt)
+                    > functions.now())
+        elif engine.name == 'oracle':
+            #memo: Oracle も functions.now() じゃなくて func.sysdate() とかにしないとダメな気がする…
+            query = query.filter(
+                SessionState.access_dt + SystemData.session_expires_minutes / 1440 > functions.now())
+        else:
+            raise NotImplementedError("{} はサポート対象外です".format(engine.name))
+
+        return query
+
+class SessionData(Base):
+    '''
+    セッションデータテーブルクラス
+    '''
+    __tablename__ = 'session_data'
+
+    session_id = Column(CHAR(43), ForeignKey("session_state.session_id"), nullable = False)
+    name = Column(Unicode(50), nullable = False)
+    value = Column(Unicode(1000), nullable = False)
+    __table_args__ = (
+        PrimaryKeyConstraint("session_id", "name"),
+    )
+
+    session_state = relationship("SessionState", back_populates = "session_datas")
+
+    def __init__(self, session_id, name, value):
+        self.session_id = session_id
+        self.name = name
+        self.value = value
+
+    def to_dict(self, with_relation = True):
+        '''
+        辞書に変換
+
+        :param bool with_relation: リレーションメンバーの値を含めるか?
+        :return: メンバー値を含む辞書を返す
+        '''
+        result = {
+            "session_id": self.session_id,
+            "name": self.name,
+            "value": self.value,
+        }
+        if with_relation:
+            result.update({
+                "session_state": self.session_state.to_dict(with_relation = False),
+            })
+        return result
+
 class Directory(Base):
     '''
     ディレクトリテーブルクラス
     '''
     __tablename__ = 'directory'
 
-    directory_name = Column(String(100), nullable = False, primary_key = True)
-    create_date = Column(Date, nullable = False, default = functions.current_date())
-    summary = Column(String)
+    directory_name = Column(Unicode(100), nullable = False, primary_key = True)
+    create_date = Column(Date, nullable = False, server_default = functions.current_date())
+    summary = Column(Unicode)
     expires_days = Column(Integer, nullable = False)
 
-    permissions = relationship("Permission", back_populates = "directory")
+    permissions = relationship("Permission", back_populates = "directory", cascade = "all, delete-orphan")
+    files = relationship("File", back_populates = "directory", cascade = "all, delete-orphan")
 
     def __init__(self, dir_name, expires_days):
         '''
@@ -86,6 +229,10 @@ class Directory(Base):
 
         :param bool with_relation: リレーションメンバーの値を含めるか?
         :return: メンバー値を含む辞書を返す
+
+        ``with_relation == True`` であっても ``files`` は含めないものとする。
+        ディレクトリに表示するファイルの一覧を取得するには、
+        TmpboxDB.get_active_files() メソッドを使用すること。
         '''
         result = {
             "directory_name": self.directory_name,
@@ -107,14 +254,14 @@ class Permission(Base):
     '''
     __tablename__ = 'permission'
 
-    directory_name = Column(String(100), ForeignKey('directory.directory_name'), nullable = False)
-    user_id = Column(String(50), ForeignKey('account_info.user_id'), nullable = False)
+    directory_name = Column(Unicode(100), ForeignKey('directory.directory_name'), nullable = False)
+    user_id = Column(Unicode(50), ForeignKey('account_info.user_id'), nullable = False)
     __table_args__ = (
         PrimaryKeyConstraint('directory_name', 'user_id'),
     )
 
     directory = relationship('Directory', back_populates = 'permissions')
-    user = relationship('Account')
+    user = relationship('Account', back_populates = "permissions")
 
     def __init__(self, dir_name, user_id):
         '''
@@ -151,20 +298,19 @@ class File(Base):
     __tablename__ = 'file_info'
 
     file_id = Column(Integer, nullable = False, primary_key = True, autoincrement = True)
-    origin_file_name = Column(String(500), nullable = False)
-    registered_user_id = Column(String(50), ForeignKey('account_info.user_id'), nullable = False)
-    registered_date = Column(Date, nullable = False, default = functions.current_date())
-    summary = Column(String)
-    directory_name = Column(String(100), ForeignKey('directory.directory_name'), nullable = False)
+    origin_file_name = Column(Unicode(500), nullable = False)
+    registered_user_id = Column(Unicode(50), nullable = False)
+    registered_date = Column(Date, nullable = False, server_default = functions.current_date())
+    summary = Column(Unicode)
+    directory_name = Column(Unicode(100), ForeignKey('directory.directory_name'), nullable = False)
     expires = Column(Date, nullable = False)
-    is_deleted = Column(Boolean, nullable = False, default = False)
+    is_deleted = Column(Boolean, nullable = False, server_default = false())
 
     __table_args__ = (
         Index("idx_file_active", directory_name, expires.desc(), is_deleted, file_id.desc()),
     )
 
-    registered_user = relationship('Account')
-    directory = relationship('Directory')
+    directory = relationship('Directory', back_populates = "files")
 
     def __init__(self, file_name, user_id, dir_name, expires):
         '''
@@ -180,13 +326,13 @@ class File(Base):
         self.directory_name = dir_name
         self.expires = expires
 
-    def to_dict(self):
+    def to_dict(self, with_relation = True):
         '''
         辞書に変換
 
         :return: メンバー値を含む辞書を返す
         '''
-        return {
+        result = {
             "file_id": self.file_id,
             "origin_file_name": self.origin_file_name,
             "registered_user_id": self.registered_user_id,
@@ -197,6 +343,12 @@ class File(Base):
             "expires": self.expires,
             "is_deleted": self.is_deleted,
         }
+        if with_relation:
+            result.update({
+                "directory": self.directory.to_dict(with_relation = False),
+            })
+
+        return result
 
 class TmpboxDBDuplicatedException(ValueError):
     '''
@@ -254,6 +406,37 @@ class TmpboxDB:
             self.engine = create_engine(self.connection_string)
 
         Base.metadata.create_all(self.engine)
+
+    def setup_system(self, minutes = None):
+        '''
+        システム共通データを設定する
+
+        :param int minutes: ログインセッションの有効期間 (分単位)、変更しない場合は None を指定
+        '''
+        self.session_scope(
+            lambda s: self.__session_setup_system(s, minutes), True)
+
+    def __session_setup_system(self, session, minutes):
+        '''
+        システム共通データを設定する
+
+        :param sqlalchemy.orm.session.Session session: セッションオブジェクト
+        :param int minutes: ログインセッションの有効期間 (分単位)、変更しない場合は None を指定
+        '''
+        sys_data = session.query(SystemData).one_or_none()
+        if sys_data:
+            sys_data.update(minutes)
+        else:
+            sys_data = SystemData(minutes)
+            session.add(sys_data)
+
+    def get_secret_key(self):
+        '''
+        Flask の Session 機能で使用するシークレットキーを取得する
+
+        :return: シークレットキーの byte 列
+        '''
+        return self.session_scope(lambda s: s.query(SystemData.secret_key).scalar())
 
     def register_account(self, user_id, display_name, password, is_admin = False):
         '''
@@ -328,14 +511,35 @@ class TmpboxDB:
 
         :param str user_id: ユーザー ID
         :param str password: パスワード (平文)
-        :return: 認証を確認できた場合は ``True`` を、それ以外の場合は ``False`` を返す。
+        :return: 認証を確認できた場合、ログインセッションを生成し、セッション ID を返す。
+            それ以外の場合は ``None`` を返す。
 
         ``password`` に ``None`` を指定すると ``TypeError`` 例外が送出されるので注意すること。
         '''
         return self.session_scope(
-            lambda s: (lambda acc: acc.check_password(password) if acc else False)(
-                s.query(Account).filter(Account.user_id == user_id).scalar())
-        )
+            lambda s: self.__session_check_authentication(s, user_id, password),
+            True)
+
+    def __session_check_authentication(self, session, user_id, password):
+        '''
+        アカウントの認証を確認するセッション処理
+
+        :param sqlalchemy.orm.session.Session session: セッションオブジェクト
+        :param str user_id: ユーザー ID
+        :param str password: パスワード (平文)
+        :return: 認証を確認できた場合、ログインセッションを生成し、セッション ID を返す。
+            それ以外の場合は ``None`` を返す。
+        '''
+        acc_info = session.query(Account).filter(Account.user_id == user_id).one_or_none()
+        if not acc_info or not acc_info.check_password(password): return
+
+        # 同一ユーザーのログインセッションに関連する情報は全て削除する
+        # (CASCADE 設定により、関連する SessionData も削除される)
+        session.query(SessionState).filter(SessionState.user_id == user_id).delete();
+
+        login_session = SessionState(user_id)
+        session.add(login_session)
+        return login_session.session_id
 
     def get_account(self, user_id):
         '''
@@ -357,6 +561,78 @@ class TmpboxDB:
         return self.session_scope(
             lambda s: [n.to_dict() for n in s.query(Account).order_by(Account.user_id)]
         )
+
+    def check_login_session(self, session_id):
+        '''
+        ログインセッションの状態を確認する
+
+        :param str session_id: セッション ID
+        :return: 有効なログインセッションが存在する場合、関連する情報を辞書化したものを返す。
+            それ以外の場合は None を返す。
+
+        ログインセッションが有効であれば、アクセス日時を更新し、有効期限を延長する。
+        '''
+        if not session_id:
+            return None
+        return self.session_scope(
+            lambda s: self.__session_check_login_session(s, session_id), True)
+
+    def __session_check_login_session(self, session, session_id):
+        '''
+        ログインセッションの状態を確認するセッション処理
+
+        :param sqlalchemy.orm.session.Session session: セッションオブジェクト
+        :param str session_id: セッション ID
+        :return: 有効なログインセッションが存在する場合、関連する情報を辞書化したものを返す。
+            それ以外の場合は None を返す。
+        '''
+        login_session = SessionState.filter_check_expires(
+            self.engine,
+            session.query(SessionState).join(SystemData, 1 == SystemData.dummy_id)
+                .filter(SessionState.session_id == session_id)
+        ).one_or_none()
+
+        if not login_session:
+            return None
+
+        login_session.access_dt = functions.now()
+        session.commit()
+        session.refresh(login_session)
+
+        return login_session.to_dict() if login_session else None
+
+    def modify_session_data(self, session_id, data):
+        '''
+        ログインセッションデータを変更する
+
+        :param str session_id: ログインセッション ID
+        :param dict data: ログインセッションデータの辞書
+        '''
+        self.session_scope(lambda s: self.__session_modify_session_data(s, session_id, data), True)
+
+    def __session_modify_session_data(self, session, session_id, data):
+        '''
+        ログインセッションデータを変更するセッション処理
+
+        :param sqlalchemy.orm.session.Session session: セッションオブジェクト
+        :param str session_id: ログインセッション ID
+        :param dict data: ログインセッションデータの辞書
+        '''
+        session.query(SessionData).filter(SessionData.session_id == session_id).delete()
+        session.add_all([SessionData(session_id, k, v) for k, v in data.items()])
+
+    def delete_session_data(self, session_id, data_name):
+        '''
+        特定の名前のログインセッションデータを削除する
+
+        :param str session_id: ログインセッション ID
+        :param dict data_name: ログインセッションデータのキー名称
+        '''
+        self.session_scope(
+            lambda s: s.query(SessionData)
+                .filter(SessionData.session_id == session_id, SessionData.name == data_name)
+                .delete(),
+            True)
 
     def register_directory(self, dir_name, expires_days, summary = None):
         '''
@@ -443,7 +719,7 @@ class TmpboxDB:
         :return: ディレクトリ情報辞書のリスト
         '''
         return self.session_scope(
-            lambda s: [n.to_dict() for n in s.query(Directory).order_by(Directory.directory_name)]
+            lambda s: [n.to_dict(with_relation = False) for n in s.query(Directory).order_by(Directory.directory_name)]
         )
 
     def get_directories_for(self, user_id):

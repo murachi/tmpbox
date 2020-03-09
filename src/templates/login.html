@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}ログイン{% endblock %}
+{% block main %}
+<section class="login">
+  <form name="login" method="POST">
+    <input type="hidden" name="loc" value="{{ url }}">
+    <table>
+      <tr>
+        <th>ユーザー ID</th>
+        <td><input type="text" name="id" value="{{ user_id }}"></td>
+      </tr>
+      <tr>
+        <th>パスワード</th>
+        <td><input type="password" name="pw" value=""></td>
+      </tr>
+    </table>
+    <p><button type="submit">送信</button></p>
+  </form>
+</section>
+{% endblock %}

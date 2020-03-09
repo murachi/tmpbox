@@ -8,7 +8,8 @@ default_unix_user = "tmpbox"
 default_file_dir = "/var/tmpbox"
 
 default_auto_password_length = 12
-default_expires_days = 14
+default_session_expires_minutes = 120
+default_file_expires_days = 14
 max_form_length = 10000
 
 prompt_msg = {
@@ -263,6 +264,7 @@ if __name__ == '__main__':
     # DB の初期設定を行う
     db = TmpboxDB(conn_str)
     db.create_tables()
+    db.setup_system(minutes = default_session_expires_minutes)
     db.register_account(admin_user, admin_disp_name, admin_pw, True)
 
     # 設定ファイル出力
@@ -277,7 +279,7 @@ if __name__ == '__main__':
     }
     conf["UploadFiles"] = {
         "DirectoryRoot": file_dir,
-        "DefaultExpiresDays": default_expires_days,
+        "DefaultExpiresDays": default_file_expires_days,
     }
     conf["Security"] = {
         "AutoPasswordLength": default_auto_password_length,
