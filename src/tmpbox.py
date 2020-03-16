@@ -7,6 +7,8 @@ from jinja2 import Markup
 from tmpbox_db_accessor import TmpboxDB, TmpboxDBDuplicatedException
 import tmpbox_validator as validator
 
+upload_files_dir = "upfiles"
+
 app = Flask(__name__)
 
 conf = configparser.ConfigParser()
@@ -14,6 +16,8 @@ conf.read('conf.d/tmpbox.ini')
 
 db = TmpboxDB(conf["DB"]["ConnectionString"])
 app.secret_key = db.get_secret_key()
+
+os.makedirs(os.path.join(conf["Repository"]["DirectoryRoot"], upload_files_dir), mode = 0o2750, exist_ok = True)
 
 @app.template_filter('dispdate')
 def filter_dispdate(d):
@@ -343,31 +347,27 @@ def post_new_directory():
             users = users,
             message_contents = Markup('<p class="error">') + msg + Markup('</p>'))
 
-    if not validator.validateURIUnreserved(dir_name):
-        return error_page(
-            "ディレクトリ名に使用できる文字は半角英数字と次の記号文字のみです: " +
-            "'.' (ピリオド)、 '_' (アンダーバー)、 '-' (ハイフン)、 '~' (チルダ)")
     if not permissions:
         return error_page("参照権限ユーザーを一人以上選択してください。")
 
     try:
-        db.register_directory(dir_name, expires_days, summary)
+        dir_id = db.register_directory(dir_name, expires_days, summary)
     except TmpboxDBDuplicatedException as exc:
         return error_page(''.join(exc.args))
-    os.makedirs(os.path.join(conf["UploadFiles"]["DirectoryRoot"], dir_name), exist_ok = True)
 
-    db.update_permission(dir_name, permissions)
+    db.update_permission(dir_id, permissions)
 
     return render_template("easy-info.html", summary = "ディレクトリ作成完了",
         content = Markup('<p>ディレクトリ <code class="directory">') + dir_name
             + Markup("</code> の作成に成功しました。"),
         prev_url = "/admin", prev_page = "管理者ページ")
 
-@app.route('/admin/directory/<dir_name>', methods = ['GET'])
-def page_edit_directory(dir_name):
+@app.route('/admin/directory/<int:dir_id>', methods = ['GET'])
+def page_edit_directory(dir_id):
     '''
     ディレクトリ編集フォームページ
 
+    :param int dir_id: ディレクトリ ID
     :return: ディレクトリ編集フォームテンプレート
     '''
     # ログイン状態チェック
@@ -379,7 +379,7 @@ def page_edit_directory(dir_name):
     if not [n for n in users if n['user_id'] == login_session["user_id"]][0]['is_admin']:
         return abort(403)
 
-    directory = db.get_directory(dir_name)
+    directory = db.get_directory(dir_id)
     permission = [n["user_id"] for n in directory["permissions"]]
     for user in users:
         user["allow"] = user["user_id"] in permission
@@ -388,11 +388,12 @@ def page_edit_directory(dir_name):
     return render_template("edit-directory.html", is_new = False, form_token = form_token,
         target_dir = directory, users = users)
 
-@app.route('/admin/directory/<dir_name>', methods = ['POST'])
-def post_edit_directory(dir_name):
+@app.route('/admin/directory/<int:dir_id>', methods = ['POST'])
+def post_edit_directory(dir_id):
     '''
     ディレクトリ編集受信処理
 
+    :param int dir_id: ディレクトリ ID
     :return: ディレクトリ編集フォームテンプレート
     '''
     # ログイン状態チェック
@@ -415,6 +416,7 @@ def post_edit_directory(dir_name):
     if not verify_form_token(login_session, "edit-directory", form_token):
         return abort(400)
 
+    dir_name = request.form["nm"]
     summary = request.form["sm"]
     expires_days = int(request.form["ed"])
     permissions = [n[1] for n in raw_form if n[0] == "pm"]
@@ -432,10 +434,10 @@ def post_edit_directory(dir_name):
                 "expires_days": expires_days,
             },
             users = users,
-            message_contents = Markup('<p class="error">') + msg + Markup('</p>'))
+            message_contents = Markup('<p class="error">参照権限ユーザーを一人以上選択してください。</p>'))
 
-    directory = db.update_directory(dir_name, expires_days, summary)
-    db.update_permission(dir_name, permissions)
+    directory = db.update_directory(dir_id, dir_name, expires_days, summary)
+    db.update_permission(dir_id, permissions)
 
     return render_template("edit-directory.html", is_new = False, form_token = form_token,
         target_dir = directory, users = users,

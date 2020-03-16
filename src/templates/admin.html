@@ -38,7 +38,7 @@
       <td>{{ dir["directory_name"] }}</td>
       <td>{{ dir["create_date"] | dispdate }}</td>
       <td>{{ dir["summary"] | firstline }}</td>
-      <td><a href="/admin/directory/{{ dir["directory_name"] }}">設定...</a></td>
+      <td><a href="/admin/directory/{{ dir["directory_id"] }}">設定...</a></td>
     </tr>
     {% endfor %}
   </table>

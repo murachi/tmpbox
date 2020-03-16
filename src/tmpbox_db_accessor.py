@@ -94,7 +94,7 @@ class SessionState(Base):
     __tablename__ = 'session_state'
 
     session_id = Column(CHAR(43), nullable = False, primary_key = True)
-    user_id = Column(Unicode(50), ForeignKey('account_info.user_id'), nullable = False)
+    user_id = Column(Unicode(50), ForeignKey('account_info.user_id', ondelete = "cascade"), nullable = False)
     access_dt = Column(DateTime, nullable = False, server_default = functions.now())
 
     account = relationship("Account", back_populates = "session_states")
@@ -163,7 +163,7 @@ class SessionData(Base):
     '''
     __tablename__ = 'session_data'
 
-    session_id = Column(CHAR(43), ForeignKey("session_state.session_id"), nullable = False)
+    session_id = Column(CHAR(43), ForeignKey("session_state.session_id", ondelete = "cascade"), nullable = False)
     name = Column(Unicode(50), nullable = False)
     value = Column(Unicode(1000), nullable = False)
     __table_args__ = (
@@ -261,8 +261,8 @@ class Permission(Base):
     '''
     __tablename__ = 'permission'
 
-    directory_id = Column(Integer, ForeignKey('directory.directory_id'), nullable = False)
-    user_id = Column(Unicode(50), ForeignKey('account_info.user_id'), nullable = False)
+    directory_id = Column(Integer, ForeignKey('directory.directory_id', ondelete = "cascade"), nullable = False)
+    user_id = Column(Unicode(50), ForeignKey('account_info.user_id', ondelete = "cascade"), nullable = False)
     __table_args__ = (
         PrimaryKeyConstraint('directory_id', 'user_id'),
     )
@@ -306,7 +306,7 @@ class File(Base):
 
     file_id = Column(Integer, nullable = False, primary_key = True, autoincrement = True)
     origin_file_name = Column(Unicode(500), nullable = False)
-    directory_id = Column(Integer, ForeignKey('directory.directory_id'), nullable = False)
+    directory_id = Column(Integer, ForeignKey('directory.directory_id', ondelete = "cascade"), nullable = False)
     expires = Column(Date, nullable = False)
     registered_user_id = Column(Unicode(50), nullable = False)
     registered_date = Column(Date, nullable = False, server_default = functions.current_date())
@@ -694,11 +694,12 @@ class TmpboxDB:
             lambda s: self.__session_update_directory(s, dir_id, dir_name, expires_days, summary),
             True)
 
-    def __session_update_directory(self, session, dir_name, expires_days, summary):
+    def __session_update_directory(self, session, dir_id, dir_name, expires_days, summary):
         '''
         ディレクトリの情報を更新する
 
         :param sqlalchemy.orm.session.Session: セッションオブジェクト
+        :param int dir_id: ディレクトリ ID
         :param str dir_name: ディレクトリ名
         :param int expires_days: デフォルトのファイル保存期間
         :param str summary: ディレクトリの説明
