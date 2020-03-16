@@ -5,8 +5,10 @@ Group = tmpbox
 [DB]
 ConnectionString = mysql://tmpbox_master:password@localhost/tmpbox
 
-[UploadFiles]
+[Repository]
 DirectoryRoot = /var/tmpbox
+
+[UploadFiles]
 DefaultExpiresDays = 14
 
 [Security]
