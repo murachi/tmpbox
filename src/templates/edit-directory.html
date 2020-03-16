@@ -13,12 +13,8 @@
       <tr>
         <th>ディレクトリ名</th>
         <td>
-          {% if is_new %}
           <input type="text" name="nm" value="{{ target_dir['directory_name'] }}"
                  maxlength="100" class="directory_name">
-          {% else %}
-          <code class="directory">{{ target_dir["directory_name"] }}</code>
-          {% endif %}
         </td>
       </tr>
       {% if not is_new %}

@@ -27,8 +27,9 @@ prompt_msg = {
             "指定したグループに属するようにユーザー情報を変更してよろしいですか?",
             "([Y]/n) >> ",
         ],
-        "save-file-directory": [
-            "アップロードされたファイルを保存するディレクトリを指定してください。",
+        "repository-root": [
+            "アプリケーションが使用するファイル (アップロードされたファイルやログファイル等) を",
+            "保存するディレクトリを指定してください。",
             "([{0}]) >> ",
         ],
         "DB-connection-string": [
@@ -81,8 +82,9 @@ prompt_msg = {
             "Shall I modify the user to join into the group?",
             "([Y]/n) >> ",
         ],
-        "save-file-directory": [
-            "Set directory path for saving uploaded files.",
+        "repository-root": [
+            "Set directory path for saving files what is used by this application",
+            "(uploaded files, log files, etc...).",
             "([{0}]) >> ",
         ],
         "DB-connection-string": [
@@ -238,13 +240,13 @@ if __name__ == '__main__':
             notice(prompt_msg["error-useradd"])
             sys.exit(1)
 
-    # アップロードされたファイルの保存先ディレクトリを決める
+    # アプリケーションが使用するファイルの保存先を決める
     uid, gid = pwd.getpwnam(unix_user)[2], grp.getgrnam(unix_group)[2]
-    file_dir = prompt(prompt_msg["save-file-directory"], None, default_file_dir)
+    file_dir = prompt(prompt_msg["repository-root"], None, default_file_dir)
     try:
         os.makedirs(file_dir, exist_ok = True)
         os.chown(file_dir, uid, gid)
-        os.chmod(file_dir, 0o750)
+        os.chmod(file_dir, 0o2750)
     except PermissionError:
         notice(prompt_msg["error-makedirs"])
         sys.exit(1)
@@ -277,8 +279,10 @@ if __name__ == '__main__':
     conf["DB"] = {
         "ConnectionString": conn_str,
     }
-    conf["UploadFiles"] = {
+    conf["Repository"] = {
         "DirectoryRoot": file_dir,
+    }
+    conf["UploadFiles"] = {
         "DefaultExpiresDays": default_file_expires_days,
     }
     conf["Security"] = {
