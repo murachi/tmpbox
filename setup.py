@@ -291,3 +291,58 @@ if __name__ == '__main__':
     }
     with open(os.path.join("src", "conf.d", "tmpbox.ini"), "w") as fout:
         conf.write(fout)
+
+    # ログ出力設定ファイル出力
+    logconf = configparser.ConfigParser(interpolation = None)
+    logconf.optionxform = str
+    logconf["loggers"] = {
+        "keys": "root, access, error, debug",
+    }
+    logconf["handlers"] = {
+        "keys": "acc_cons, acc_file, err_cons, err_file, dbg_cons, dbg_file",
+    }
+    logconf["formatters"] = {
+        "keys": "console, file",
+    }
+    logconf["logger_root"] = {
+        "level": "NOTSET",
+        "handlers": "",
+    }
+    logconf["logger_access"] = {
+        "level": "INFO",
+        "handlers": "acc_cons, acc_file",
+        "qualname": "access",
+    }
+    logconf["logger_error"] = {
+        "level": "WARNING",
+        "handlers": "err_cons, err_file",
+        "qualname": "error",
+    }
+    logconf["logger_debug"] = {
+        "level": "DEBUG",
+        "handlers": "dbg_cons, dbg_file",
+        "qualname": "debug",
+    }
+    handler_kinds = (("acc", "access"), ("err", "error"), ("dbg", "debug"))
+    for k, f in handler_kinds:
+        logconf["handler_{}_cons".format(k)] = {
+            "class": "StreamHandler",
+            "level": "NOTSET",
+            "formatter": "console",
+        }
+        logconf["handler_{}_file".format(k)] = {
+            "class": "handlers.RotatingFileHandler",
+            "level": "NOTSET",
+            "formatter": "file",
+            "args": (os.path.join(file_dir, "log", "{}.log".format(f)),),
+            "kwargs": {"maxBytes": 5242880, "backupCount": 10},
+        }
+    logconf["formatter_console"] = {
+        "format": "[%(levelname)s] %(name)s: %(message)s",
+    }
+    logconf["formatter_file"] = {
+        "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        "datefmt": "%Y-%m-%d %H:%M:%S",
+    }
+    with open(os.path.join("src", "conf.d", "logging.ini"), "w") as fout:
+        logconf.write(fout)
