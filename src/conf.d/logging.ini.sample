@@ -1,0 +1,70 @@
+[loggers]
+keys = root, access, error, debug
+
+[handlers]
+keys = acc_cons, acc_file, err_cons, err_file, dbg_cons, dbg_file
+
+[formatters]
+keys = console, file
+
+[logger_root]
+level = NOTSET
+handlers =
+
+[logger_access]
+level = INFO
+handlers = acc_cons, acc_file
+qualname = access
+
+[logger_error]
+level = WARNING
+handlers = err_cons, err_file
+qualname = error
+
+[logger_debug]
+level = DEBUG
+handlers = dbg_cons, dbg_file
+qualname = debug
+
+[handler_acc_cons]
+class = StreamHandler
+level = NOTSET
+formatter = console
+
+[handler_acc_file]
+class = handlers.RotatingFileHandler
+level = NOTSET
+formatter = file
+args = ('/var/tmpbox/log/access.log',)
+kwargs = {'maxBytes': 5242880, 'backupCount': 10}
+
+[handler_err_cons]
+class = StreamHandler
+level = NOTSET
+formatter = console
+
+[handler_err_file]
+class = handlers.RotatingFileHandler
+level = NOTSET
+formatter = file
+args = ('/var/tmpbox/log/error.log',)
+kwargs = {'maxBytes': 5242880, 'backupCount': 10}
+
+[handler_dbg_cons]
+class = StreamHandler
+level = NOTSET
+formatter = console
+
+[handler_dbg_file]
+class = handlers.RotatingFileHandler
+level = NOTSET
+formatter = file
+args = ('/var/tmpbox/log/debug.log',)
+kwargs = {'maxBytes': 5242880, 'backupCount': 10}
+
+[formatter_console]
+format = [%(levelname)s] %(name)s: %(message)s
+
+[formatter_file]
+format = %(asctime)s [%(levelname)s] %(name)s: %(message)s
+datefmt = %Y-%m-%d %H:%M:%S

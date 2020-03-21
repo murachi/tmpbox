@@ -1,4 +1,4 @@
-import os, sys, configparser, secrets, urllib.parse
+import os, sys, configparser, secrets, urllib.parse, logging, logging.config
 from flask import Flask, url_for, render_template, redirect, abort, Markup, request, session
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -8,16 +8,22 @@ from tmpbox_db_accessor import TmpboxDB, TmpboxDBDuplicatedException
 import tmpbox_validator as validator
 
 upload_files_dir = "upfiles"
+log_dir = "log"
 
 app = Flask(__name__)
 
 conf = configparser.ConfigParser()
 conf.read('conf.d/tmpbox.ini')
 
+os.makedirs(os.path.join(conf["Repository"]["DirectoryRoot"], upload_files_dir), mode = 0o2750, exist_ok = True)
+os.makedirs(os.path.join(conf["Repository"]["DirectoryRoot"], log_dir), mode = 0o2750, exist_ok = True)
+
+logging.config.fileConfig("conf.d/logging.ini")
+logger_acc = logging.getLogger("access")
+logger_err = logging.getLogger("debug" if app.debug else "error")
+
 db = TmpboxDB(conf["DB"]["ConnectionString"])
 app.secret_key = db.get_secret_key()
-
-os.makedirs(os.path.join(conf["Repository"]["DirectoryRoot"], upload_files_dir), mode = 0o2750, exist_ok = True)
 
 @app.template_filter('dispdate')
 def filter_dispdate(d):
@@ -53,6 +59,9 @@ def verify_login_session():
     :return: ログインセッション状態情報の辞書
     '''
     login_session = db.check_login_session(session.get('token', None))
+    if not login_session:
+        logger_err.info(
+            "Login session failed (or expired). Accessed from <{}>.".format(request.remote_addr))
     return (
         login_session,
         None if login_session
@@ -83,10 +92,21 @@ def verify_form_token(login_session, form_name, token):
     '''
     key_name = "{}-token".format(form_name)
     target_token = [n["value"] for n in login_session["session_datas"] if n["name"] == key_name]
-    if not target_token or target_token[0] != token: return False
+    if not target_token or target_token[0] != token:
+        logger_err.error("Invalid form token. Accessed from <{}>.".format(request.remote_addr))
+        return False
 
     db.delete_session_data(login_session["session_id"], key_name)
     return True
+
+@app.before_request
+def log_by_access():
+    '''
+    アクセスログを出力する
+    '''
+    logger_acc.info(
+        "[{method}]{path} - {rmt_addr}".format(
+            path = request.path, method = request.method, rmt_addr = request.remote_addr))
 
 @app.route('/')
 def page_index():
@@ -131,9 +151,13 @@ def post_login():
     token = db.check_authentication(user_id, password)
 
     if token:
+        logger_err.info("User '{}' successed to log in.".format(user_id))
         session["token"] = token
         return redirect(location_path)
     else:
+        logger_err.error(
+            "Authentication failed. Accessed from <{}> (tried id = '{}', pass = '{}')"
+                .format(request.remote_addr, user_id, password))
         return render_template('login.html', url = location_path, user_id = user_id,
             message_contents = Markup('<p class="error">ユーザー ID またはパスワードが一致しません。</p>'))
 
