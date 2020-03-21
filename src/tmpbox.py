@@ -43,7 +43,7 @@ def filter_firstline(text):
     :param str text: テキスト
     :return: 最初の 1行を含む HTML テキスト
 
-    ``<span>`` タグに来るんだ HTML テキストを返す。
+    ``<span>`` タグに包んだ HTML テキストを返す。
     ``text`` が 2行以上ある場合、 ``<span>`` タグにはクラス ``multilines``
     が設定される。 CSS はこれを見て 3点リーダーを表示する等の制御を行う。
     '''
@@ -121,11 +121,12 @@ def page_index():
     # ログイン状態チェック
     login_session, redirect_obj = verify_login_session()
 
-    acc_info = {}
+    acc_info, dirs = {}, []
     if login_session:
         acc_info = db.get_account(login_session["user_id"])
+        dirs = db.get_directories_for(login_session["user_id"])
 
-    return render_template('index.html', **acc_info)
+    return render_template('index.html', **acc_info, directories = dirs)
 
 @app.route('/login', methods = ['GET'])
 def page_login():

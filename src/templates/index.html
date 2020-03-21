@@ -15,5 +15,20 @@
 </section>
 {% endblock %}
 {% block main %}
-
+<section class="directories">
+  <table>
+    <tr>
+      <th>ディレクトリ名</th>
+      <th>作成日</th>
+      <th>説明</th>
+    </tr>
+    {% for dir in directories %}
+    <tr>
+      <td><a href="/{{ dir['directory_id'] }}">{{ dir["directory_name"] }}</a></td>
+      <td>{{ dir["create_date"] | dispdate }}</td>
+      <td>{{ dir["summary"] | firstline }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
 {% endblock %}
