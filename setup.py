@@ -11,6 +11,7 @@ default_auto_password_length = 12
 default_session_expires_minutes = 120
 default_file_expires_days = 14
 max_form_length = 10000
+max_form_length_with_file = 200 * 1024 * 1024
 
 prompt_msg = {
     "ja_JP": {
@@ -288,6 +289,7 @@ if __name__ == '__main__':
     conf["Security"] = {
         "AutoPasswordLength": default_auto_password_length,
         "MaxFormLength": max_form_length,
+        "MaxFormLengthWithFile": max_form_length_with_file,
     }
     with open(os.path.join("src", "conf.d", "tmpbox.ini"), "w") as fout:
         conf.write(fout)

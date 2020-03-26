@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}ディレクトリ{% if is_new %}新規登録{% else %}編集{% endif %}{% endblock %}
+{% block additional_head %}
+<script src="/static/show-message.js"></script>
+<script src="/static/directory.js"></script>
+{% endblock %}
+{% block main %}
+<section class="status directory">
+  <h1>{{ dir["directory_name"] }}</h1>
+  {{ dir["summary"] | markup_summary }}
+</section>
+<section class="upload">
+  <form name="upload" method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="c" value="up">
+    <input type="hidden" name="tk" value="{{ upload_form_token }}">
+    <table>
+      <tr>
+        <th>ファイル</th>
+        <td>
+          <input type="file" name="fp">
+        </td>
+      </tr>
+      <tr>
+        <th>有効期限</th>
+        <td>
+          <p>この日を超えるとファイルは削除されます。</p>
+          <p><input type="date" name="ep" value="{{ expires.strftime('%Y-%m-%d') }}"></p>
+        </td>
+      </tr>
+      <tr>
+        <th>説明</th>
+        <td>
+          <textarea name="sm" wrap="soft" class="summary"></textarea>
+        </td>
+      </tr>
+    </table>
+    <p>
+      <button type="submit">送信</button>
+    </p>
+  </form>
+</section>
+<section class="files">
+  <p>ファイル名をクリックするとダウンロードが行われます。</p>
+  <form method="POST" name="file-delete">
+    <input type="hidden" name="c" value="del">
+    <input type="hidden" name="tk" value="{{ delete_form_token }}">
+    <input type="hidden" name="fid" value="">
+    <table>
+      <tr>
+        <th rowspan="2">ファイル名</th>
+        <th>登録ユーザー</th>
+        <th rowspan="2">有効期限</th>
+        <th rowspan="2">説明</th>
+        <th rowspan="2">削除</th>
+      </tr>
+      <tr>
+        <th>登録日</th>
+      </tr>
+      {% for file in files %}
+      <tr>
+        <td id="filename-{{ file['file_id'] }}" rowspan="2">{{ file["origin_file_name"] }}</td>
+        <td>{{ file["registered_user_name" if "registered_user_name" in file else file["registered_user_id"]] }}</td>
+        <td rowspan="2">{{ file["expires"] | dispdate }}</td>
+        <td rowspan="2">{{ file["summary"] | markup_summary }}</td>
+        <td rowspan="2">
+          {% if file["registered_user_id"] == user_id %}
+          <button class="delete" id="filedel-{{ file['file_id'] }}">削除...</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </form>
+</section>
+{% endblock %}
