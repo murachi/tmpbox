@@ -58,7 +58,9 @@
       </tr>
       {% for file in files %}
       <tr>
-        <td id="filename-{{ file['file_id'] }}" rowspan="2">{{ file["origin_file_name"] }}</td>
+        <td id="filename-{{ file['file_id'] }}" rowspan="2">
+          <a href="/{{ file['directory_id'] }}/{{ file['file_id'] }}">{{ file["origin_file_name"] }}</a>
+        </td>
         <td>{{ file["registered_user_name" if "registered_user_name" in file else file["registered_user_id"]] }}</td>
         <td rowspan="2">{{ file["expires"] | dispdate }}</td>
         <td rowspan="2">{{ file["summary"] | markup_summary }}</td>

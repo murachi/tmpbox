@@ -1,8 +1,9 @@
 import os, sys, configparser, secrets, urllib.parse, logging, logging.config, tempfile
 from datetime import datetime, date, timedelta
-from flask import Flask, url_for, render_template, redirect, abort, Markup, request, session
+from flask import Flask, url_for, render_template, redirect, abort, send_file, Markup, request, session
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.exceptions import HTTPException
 from jinja2 import Markup
 
 from tmpbox_db_accessor import TmpboxDB, TmpboxDBDuplicatedException
@@ -128,6 +129,12 @@ def log_by_access():
     logger_acc.info(
         "[{method}]{path} - {rmt_addr}".format(
             path = request.path, method = request.method, rmt_addr = request.remote_addr))
+
+@app.errorhandler(Exception)
+def log_by_exception(exc):
+    if not isinstance(exc, HTTPException):
+        logger_err.exception("Not handled error was raised.")
+    return exc
 
 @app.route('/')
 def page_index():
@@ -571,3 +578,31 @@ def render_page_directory(login_session, dir, message = ''):
         dir = dir, files = files, user_id = login_session["user_id"], expires = default_expires,
         upload_form_token = upload_form_token, delete_form_token = delete_form_token,
         message_contents = message)
+
+@app.route("/<int:dir_id>/<int:file_id>", methods = ["GET"])
+def get_download_file(dir_id, file_id):
+    '''
+    ファイルダウンロード処理
+
+    :param int dir_id: ディレクトリ ID
+    :param int file_id: ファイル ID
+    :return: ファイル送信レスポンス
+    '''
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+    if not login_session: return redirect_obj
+
+    dir = db.get_directory(dir_id)
+    if not dir or login_session["user_id"] not in [n["user_id"] for n in dir["permissions"]]:
+        logger_err.error("Permission failed for directory <%s> by user <%s>",
+            "{}: {}".format(dir["directory_id"], dir["directory_name"]), login_session["user_id"])
+        return abort(404)
+
+    file = db.get_file(dir_id, file_id)
+    if not file:
+        logger_err.error("File not found in directory <%s> (file_id = <%d>)",
+            "{}: {}".format(dir["directory_id"], dir["directory_name"]), file_id)
+        return abort(404)
+
+    return send_file(os.path.join(repository_root, upload_files_dir, str(file["file_id"])),
+        as_attachment = True, attachment_filename = file["origin_file_name"])
