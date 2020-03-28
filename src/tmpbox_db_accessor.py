@@ -345,7 +345,6 @@ class File(Base):
             "directory_id": self.directory_id,
             "expires": self.expires,
             "registered_user_id": self.registered_user_id,
-            "registered_user_display_name": self.registered_user.display_name,
             "registered_date": self.registered_date,
             "summary": self.summary,
             "is_deleted": self.is_deleted,
@@ -782,7 +781,7 @@ class TmpboxDB:
             lambda s: (lambda d: d.to_dict() if d else None)(q.with_session(s).one_or_none())
         )
 
-    def register_file(self, file_name, dir_name, expires, user_id, summary = None):
+    def register_file(self, file_name, dir_id, expires, user_id, summary = None):
         '''
         ファイルを登録する
 
@@ -825,6 +824,7 @@ class TmpboxDB:
 
         :param str dir_id: ファイルが存在するディレクトリ ID
         :param int file_id: ファイル ID
+        :return: 成功した場合、削除されたファイルのファイル名を返す。それ以外の場合は ``None`` を返す。
 
         ``file_id`` のファイルが ``dir_id`` のディレクトリに存在しない場合、削除は行われない。
         '''
@@ -839,12 +839,14 @@ class TmpboxDB:
         :param sqlalchemy.orm.session.Session session: セッションオブジェクト
         :param str dir_id: ファイルが存在するディレクトリ ID
         :param int file_id: ファイル ID
+        :return: 成功した場合、削除されたファイルのファイル名を返す。それ以外の場合は ``None`` を返す。
         '''
         file = session.query(File) \
-            .filter(File.file_id == file_id, File.directory_id == dir_id) \
+            .filter(File.file_id == file_id, File.directory_id == dir_id, File.is_deleted == false()) \
             .one_or_none()
         if file:
             file.is_deleted = True
+            return file.origin_file_name
 
     def get_active_files(self, dir_id):
         '''

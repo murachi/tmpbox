@@ -1,7 +1,9 @@
-import os, sys, configparser, secrets, urllib.parse, logging, logging.config
-from flask import Flask, url_for, render_template, redirect, abort, Markup, request, session
+import os, sys, configparser, secrets, urllib.parse, logging, logging.config, tempfile
+from datetime import datetime, date, timedelta
+from flask import Flask, url_for, render_template, redirect, abort, send_file, Markup, request, session
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.exceptions import HTTPException
 from jinja2 import Markup
 
 from tmpbox_db_accessor import TmpboxDB, TmpboxDBDuplicatedException
@@ -9,14 +11,17 @@ import tmpbox_validator as validator
 
 upload_files_dir = "upfiles"
 log_dir = "log"
+temp_dir = "temp"
 
 app = Flask(__name__)
 
 conf = configparser.ConfigParser()
 conf.read('conf.d/tmpbox.ini')
 
-os.makedirs(os.path.join(conf["Repository"]["DirectoryRoot"], upload_files_dir), mode = 0o2750, exist_ok = True)
-os.makedirs(os.path.join(conf["Repository"]["DirectoryRoot"], log_dir), mode = 0o2750, exist_ok = True)
+repository_root = conf["Repository"]["DirectoryRoot"]
+os.makedirs(os.path.join(repository_root, upload_files_dir), mode = 0o2750, exist_ok = True)
+os.makedirs(os.path.join(repository_root, log_dir), mode = 0o2750, exist_ok = True)
+os.makedirs(os.path.join(repository_root, temp_dir), mode = 0o2750, exist_ok = True)
 
 logging.config.fileConfig("conf.d/logging.ini")
 logger_acc = logging.getLogger("access")
@@ -43,13 +48,26 @@ def filter_firstline(text):
     :param str text: テキスト
     :return: 最初の 1行を含む HTML テキスト
 
-    ``<span>`` タグに来るんだ HTML テキストを返す。
+    ``<span>`` タグに包んだ HTML テキストを返す。
     ``text`` が 2行以上ある場合、 ``<span>`` タグにはクラス ``multilines``
     が設定される。 CSS はこれを見て 3点リーダーを表示する等の制御を行う。
     '''
     lines = text.split("\n")
     return Markup('<span' + (' class="multilines"' if len(lines) > 1 else '') + '>') \
         + lines[0] + Markup('</span>')
+
+@app.template_filter('markup_summary')
+def filter_markup_summary(text):
+    '''
+    概要テキストを HTML 化するフィルター
+
+    :param str text: テキスト
+    :return: 全文を含む HTML テキスト
+
+    ``<p>`` タグに包んだ HTML テキストを返す。
+    ``text`` 中の改行は ``<br>`` タグに変換される。
+    '''
+    return (Markup('<p>') + text + Markup('</p>')).replace("\n", Markup("<br>"))
 
 def verify_login_session():
     '''
@@ -75,9 +93,13 @@ def gen_form_token(login_session, form_name):
     :param dict login_session: ログインセッション状態の辞書
     :param str form_name: セッションデータキーに用いるフォーム名称
     '''
-    data = {n["name"]: n["value"] for n in login_session["session_datas"]}
     token = secrets.token_urlsafe(8)
-    data.update({"{}-token".format(form_name): token})
+    login_session["session_datas"].append({
+        "session_id": login_session["session_id"],
+        "name": "{}-token".format(form_name),
+        "value": token,
+    })
+    data = {n["name"]: n["value"] for n in login_session["session_datas"]}
     db.modify_session_data(login_session["session_id"], data)
     return token
 
@@ -108,6 +130,12 @@ def log_by_access():
         "[{method}]{path} - {rmt_addr}".format(
             path = request.path, method = request.method, rmt_addr = request.remote_addr))
 
+@app.errorhandler(Exception)
+def log_by_exception(exc):
+    if not isinstance(exc, HTTPException):
+        logger_err.exception("Not handled error was raised.")
+    return exc
+
 @app.route('/')
 def page_index():
     '''
@@ -121,11 +149,12 @@ def page_index():
     # ログイン状態チェック
     login_session, redirect_obj = verify_login_session()
 
-    acc_info = {}
+    acc_info, dirs = {}, []
     if login_session:
         acc_info = db.get_account(login_session["user_id"])
+        dirs = db.get_directories_for(login_session["user_id"])
 
-    return render_template('index.html', **acc_info)
+    return render_template('index.html', **acc_info, directories = dirs)
 
 @app.route('/login', methods = ['GET'])
 def page_login():
@@ -466,3 +495,114 @@ def post_edit_directory(dir_id):
     return render_template("edit-directory.html", is_new = False, form_token = form_token,
         target_dir = directory, users = users,
         message_contents = Markup('<p class="info">ディレクトリの情報を更新しました。</p>'))
+
+@app.route('/<int:dir_id>', methods = ['GET'])
+def page_directory(dir_id):
+    '''
+    ディレクトリページ
+
+    :param int dir_id: ディレクトリ ID
+    :return: ディレクトリページテンプレート
+    '''
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+    if not login_session: return redirect_obj
+
+    dir = db.get_directory(dir_id)
+    if not dir or login_session["user_id"] not in [n["user_id"] for n in dir["permissions"]]:
+        return abort(404)
+
+    return render_page_directory(login_session, dir)
+
+@app.route('/<int:dir_id>', methods = ['POST'])
+def post_directory(dir_id):
+    '''
+    ファイルアップロードまたはファイル削除受信処理
+
+    :param int dir_id: ディレクトリ ID
+    :return: ディレクトリページテンプレート
+    '''
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+    if not login_session: return redirect_obj
+
+    dir = db.get_directory(dir_id)
+    if not dir or login_session["user_id"] not in [n["user_id"] for n in dir["permissions"]]:
+        return abort(404)
+
+    raw_form = urllib.parse.parse_qsl(request.get_data(as_text = True))
+    logger_err.debug("Raw form URL = '{}'".format(raw_form))
+
+    command = request.form["c"]
+    form_token = request.form["tk"]
+
+    if (command == "up"):   # ファイルアップロード
+        if not verify_form_token(login_session, "upload", form_token):
+            return abort(400)
+
+        # 受信データサイズをチェック (でかすぎる場合はけんもほろろに Bad Request)
+        if request.content_length > int(conf["Security"]["MaxFormLengthWithFile"]):
+            return abort(400)
+
+        file = request.files["fp"]
+        with tempfile.NamedTemporaryFile(dir = os.path.join(repository_root, temp_dir), delete = False) as fout:
+            file.save(fout)
+            tmp_path = fout.name
+        expires = datetime.strptime(request.form["ep"], "%Y-%m-%d").date()
+        summary = request.form["sm"]
+        file_id = db.register_file(file.filename, dir_id, expires, login_session["user_id"], summary)
+        os.rename(tmp_path, os.path.join(repository_root, upload_files_dir, str(file_id)))
+        message = 'ファイル "{}" を登録しました。'.format(file.filename)
+
+    elif (command == "del"):    # ファイル削除
+        if not verify_form_token(login_session, "delete", form_token):
+            return abort(400)
+
+        file_id = int(request.form["fid"])
+        file_name = db.delete_file(dir_id, file_id)
+        if not file_name:
+            return abort(404)
+
+        message = 'ファイル "{}" を削除しました。'.format(file_name)
+
+    return render_page_directory(login_session, dir,
+        Markup('<p class="info">') + message + Markup('</p>'))
+
+def render_page_directory(login_session, dir, message = ''):
+    files = db.get_active_files(dir["directory_id"])
+    default_expires = date.today() + timedelta(days = dir["expires_days"])
+
+    upload_form_token = gen_form_token(login_session, "upload")
+    delete_form_token = gen_form_token(login_session, "delete")
+    return render_template("directory.html",
+        dir = dir, files = files, user_id = login_session["user_id"], expires = default_expires,
+        upload_form_token = upload_form_token, delete_form_token = delete_form_token,
+        message_contents = message)
+
+@app.route("/<int:dir_id>/<int:file_id>", methods = ["GET"])
+def get_download_file(dir_id, file_id):
+    '''
+    ファイルダウンロード処理
+
+    :param int dir_id: ディレクトリ ID
+    :param int file_id: ファイル ID
+    :return: ファイル送信レスポンス
+    '''
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+    if not login_session: return redirect_obj
+
+    dir = db.get_directory(dir_id)
+    if not dir or login_session["user_id"] not in [n["user_id"] for n in dir["permissions"]]:
+        logger_err.error("Permission failed for directory <%s> by user <%s>",
+            "{}: {}".format(dir["directory_id"], dir["directory_name"]), login_session["user_id"])
+        return abort(404)
+
+    file = db.get_file(dir_id, file_id)
+    if not file:
+        logger_err.error("File not found in directory <%s> (file_id = <%d>)",
+            "{}: {}".format(dir["directory_id"], dir["directory_name"]), file_id)
+        return abort(404)
+
+    return send_file(os.path.join(repository_root, upload_files_dir, str(file["file_id"])),
+        as_attachment = True, attachment_filename = file["origin_file_name"])
