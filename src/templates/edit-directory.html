@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}ディレクトリ{% if is_new %}新規登録{% else %}編集{% endif %}{% endblock %}
+{% block title %}ディレクトリ{% if is_new %}新規登録{% else %}編集: {{ target_dir['directory_name'] }}{% endif %}{% endblock %}
 {% block additional_head %}
 <script src="/static/validator.js"></script>
 <script src="/static/show-message.js"></script>

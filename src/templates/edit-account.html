@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}アカウント{% if is_new %}新規登録{% else %}編集{% endif %}{% endblock %}
+{% block title %}アカウント{% if is_new %}新規登録{% else %}編集: {{ target_user['user_id'] }}{% endif %}{% endblock %}
 {% block additional_head %}
 <script src="/static/validator.js"></script>
 <script src="/static/show-message.js"></script>
@@ -7,7 +7,7 @@
 {% endblock %}
 {% block main %}
 <section class="edit account">
-  <form method="POST" name="account">{# このページの URL へ POST する #}
+  <form method="POST" name="account">
     <input type="hidden" name="tk" value="{{ form_token }}">
     <table>
       <tr>

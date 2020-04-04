@@ -18,6 +18,7 @@
   },
   "homepage": "https://github.com/murachi/tmpbox#readme",
   "devDependencies": {
+    "@types/zxcvbn": "^4.4.0",
     "sass": "^1.25.0",
     "typedoc": "^0.16.10",
     "typescript": "^3.7.5"

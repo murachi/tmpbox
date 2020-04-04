@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}ディレクトリ{% if is_new %}新規登録{% else %}編集{% endif %}{% endblock %}
+{% block title %}ディレクトリ: {{ dir["directory_name"] }}{% endblock %}
 {% block additional_head %}
 <script src="/static/show-message.js"></script>
 <script src="/static/directory.js"></script>

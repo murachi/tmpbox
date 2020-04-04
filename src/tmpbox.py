@@ -185,8 +185,8 @@ def post_login():
         return redirect(location_path)
     else:
         logger_err.error(
-            "Authentication failed. Accessed from <{}> (tried id = '{}', pass = '{}')"
-                .format(request.remote_addr, user_id, password))
+            "Authentication failed. Accessed from <%s> (tried id = '%s', pass = '%s')",
+            request.remote_addr, user_id, password)
         return render_template('login.html', url = location_path, user_id = user_id,
             message_contents = Markup('<p class="error">ユーザー ID またはパスワードが一致しません。</p>'))
 
@@ -606,3 +606,66 @@ def get_download_file(dir_id, file_id):
 
     return send_file(os.path.join(repository_root, upload_files_dir, str(file["file_id"])),
         as_attachment = True, attachment_filename = file["origin_file_name"])
+
+@app.route("/profile", methods = ["GET"])
+def page_profile():
+    '''
+    ユーザー設定画面
+
+    :return: ユーザー設定画面テンプレート
+    '''
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+    if not login_session: return redirect_obj
+
+    user = db.get_account(login_session["user_id"])
+    token = gen_form_token(login_session, "profile")
+    return render_template("profile.html", form_token = token, user = user)
+
+@app.route("/profile", methods = ["POST"])
+def post_profile():
+    '''
+    ユーザー設定を登録する処理
+
+    :return: ユーザー設定画面テンプレート
+    '''
+    # ログイン状態チェック
+    login_session, redirect_obj = verify_login_session()
+    if not login_session: return redirect_obj
+
+    # フォームトークンの検証に失敗した場合は Bad Request
+    form_token = request.form["tk"]
+    if not verify_form_token(login_session, "profile", form_token):
+        return abort(400)
+
+    user = db.get_account(login_session["user_id"])
+    token = gen_form_token(login_session, "profile")
+
+    display_name = request.form["dn"]
+    new_password = None
+    want_change_password = request.form["pwm"] == "1"
+    if want_change_password:
+        if not check_password_hash(user["password_hash"], request.form["cpw"]):
+            logger_err.error(
+                "Authentication failed at change password request. "
+                    + "Accessed from <%s> (tried id = '%s', pass = '%s')",
+                request.remote_addr, user_id, password)
+            return render_template("profile.html", form_token = token, user = user,
+                message_contents = Markup('<p class="error">')
+                    + "現在のパスワードが正しくありません。入力し直してください。"
+                    + Markup('</p>'))
+        new_password = request.form["npw"]
+        new_password_for_validation = request.form["npw2"]
+        if new_password != new_password_for_validation:
+            logger_err.error("Unmatched new passwords ('%s' and '%s').",
+                new_password, new_password_for_validation)
+            return render_template("profile.html", form_token = token, user = user,
+                message_contents = Markup('<p class="error">')
+                    + "確認用パスワードが一致しません。入力し直してください。"
+                    + Markup('</p>'))
+
+    user = db.modify_account(login_session["user_id"], display_name, new_password)
+    return render_template("profile.html", form_token = token, user = user,
+        message_contents = Markup('<p class="info">')
+            + "アカウント情報を更新しました。"
+            + Markup('</p>'))
