@@ -75,6 +75,7 @@ class Account(Base):
         return {
             "user_id": self.user_id,
             "display_name": self.display_name,
+            "password_hash": self.password_hash,
             "is_admin": self.is_admin,
         }
 

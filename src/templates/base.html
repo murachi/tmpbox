@@ -6,8 +6,10 @@
   <link rel="stylesheet" href="/static/main.css">
   <script><!--
     var exports = {};
+    var module = {};
     function require(mod_path) {
-      return exports;
+      if (/^[\.\/]/.test(mod_path)) return exports;
+      else return module.exports;
     }
   --></script>
   {% block additional_head %}{% endblock %}

@@ -27,3 +27,13 @@ body {
     background-color: yellow;
   }
 }
+
+section.login-message {
+  nav.menu {
+    float: right;
+  }
+
+  &::after {
+    clear: both;
+  }
+}

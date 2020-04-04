@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}アカウント設定{% endblock %}
+{% block additional_head %}
+<script src="/static/zxcvbn.js"></script>
+<script src="/static/show-message.js"></script>
+<script src="/static/profile.js"></script>
+{% endblock %}
+{% block main %}
+<section class="edit account">
+  <form method="POST" name="account">
+    <input type="hidden" name="tk" value="{{ form_token }}">
+    <table>
+      <tr>
+        <th>ユーザー ID</th>
+        <td>
+          <code class="user_id">{{ user["user_id"] }}</code>
+        </td>
+      </tr>
+      <tr>
+        <th>表示名</th>
+        <td>
+          <input type="text" name="dn" value="{{ user['display_name'] }}"
+                 maxlength="100" class="display_name">
+        </td>
+      </tr>
+      <tr>
+        <th>パスワード</th>
+        <td>
+          <p>
+            <label for="password_modify_no">
+              <input type="radio" name="pwm" value="0" checked="checked" id="password_modify_no">
+              変更しない
+            </label>
+            <label for="password_modify_yes">
+              <input type="radio" name="pwm" value="1" id="password_modify_yes">
+              変更する (自動生成)
+            </label>
+          </p>
+          <table class="password">
+            <tr>
+              <th>現在のパスワード</th>
+              <td colspan="2"><input type="password" name="cpw" disabled="disabled"></td>
+            </tr>
+            <tr>
+              <th>新しいパスワード</th>
+              <td><input type="password" name="npw" disabled="disabled"></td>
+              <td>
+                <p>パスワードの強度:</p>
+                <p id="pwchk_strength" class="0">不可</p>
+                <div id="pwchk_feedback"></div>
+              </td>
+            </tr>
+            <tr>
+              <th>新しいパスワード (確認)</th>
+              <td colspan="2"><input type="password" name="npw2" disabled="disabled"></td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+    <p>
+      <button type="submit">送信</button>
+    </p>
+  </form>
+</section>
+{% endblock %}

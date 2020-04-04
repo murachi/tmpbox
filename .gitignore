@@ -2,6 +2,7 @@ __pycache__/
 /src/static/*.css
 /src/static/*.css.map
 /src/static/*.js
+/src/static/*.js.map
 /src/conf.d/*.ini
 /node_modules/
 /docs/
