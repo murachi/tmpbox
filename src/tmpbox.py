@@ -147,7 +147,7 @@ def page_index():
     それ以外の場合、ログインページへのリンクを表示する。
     '''
     # ログイン状態チェック
-    login_session, redirect_obj = verify_login_session()
+    login_session, _ = verify_login_session()
 
     acc_info, dirs = {}, []
     if login_session:
@@ -189,6 +189,20 @@ def post_login():
             request.remote_addr, user_id, password)
         return render_template('login.html', url = location_path, user_id = user_id,
             message_contents = Markup('<p class="error">ユーザー ID またはパスワードが一致しません。</p>'))
+
+@app.route('/logout')
+def page_logout():
+    '''
+    ログアウトページ
+
+    :return: トップページへのリダイレクト
+    '''
+    # ログイン状態チェック
+    login_session, _ = verify_login_session()
+    if login_session:
+        db.delete_login_session(login_session["session_id"])
+
+    return redirect("/")
 
 @app.route('/admin')
 def page_admin():

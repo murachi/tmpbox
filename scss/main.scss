@@ -5,6 +5,8 @@ $font-family: 'Noto Sans JP','Fira Mono',monospace;
 
 body {
   font-family: $font-family;
+  color: #333;
+  background: #ccc4;
 }
 
 #message_area > p {
@@ -22,6 +24,25 @@ body {
   }
 }
 
+header {
+  h1 {
+    margin: 0 4pt;
+    padding: 8pt 16pt;
+    font-size: 30pt;
+    line-height: 180%;
+    background: repeating-linear-gradient(30deg, #fff0, #ff06 2pt, #fff0 2pt, #0ff6 4pt, #fff0 4pt, #f0f6 6pt),
+                repeating-linear-gradient(120deg, #fff0, #ff06 2pt, #fff0 2pt, #0ff6 4pt, #fff0 4pt, #f0f6 6pt);
+
+    a {
+      text-decoration: none;
+
+      &:link, &:visited, &:active, &:hover {
+        color: inherit;
+      }
+    }
+  }
+}
+
 .main {
   input.error, select.error, textarea.error {
     background-color: yellow;
@@ -29,11 +50,25 @@ body {
 }
 
 section.login-message {
+  border-right: 2px solid #666;
+  border-bottom: 2px solid #666;
+  background-color: white;
+  padding: 0.5em 0.5em 0.25em;
+  margin: 0.5em;
+
   nav.menu {
     float: right;
+    margin: 0;
+  }
+
+  p {
+    font-size: 10pt;
+    margin: 0;
   }
 
   &::after {
+    content: "";
+    display: table;
     clear: both;
   }
 }
