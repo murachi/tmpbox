@@ -608,6 +608,16 @@ class TmpboxDB:
 
         return login_session.to_dict() if login_session else None
 
+    def delete_login_session(self, session_id):
+        '''
+        ログインセッションを削除する (ログアウト処理)
+
+        :param str session_id: セッション ID
+        '''
+        self.session_scope(
+            lambda s: s.query(SessionState).filter(SessionState.session_id == session_id).delete(),
+            True)
+
     def modify_session_data(self, session_id, data):
         '''
         ログインセッションデータを変更する

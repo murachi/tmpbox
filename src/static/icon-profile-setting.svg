@@ -1,19 +1,29 @@
 <?xml version="1.0" standalone="no"?>
-<svg width="32px" height="32px" viewBox="0 0 100 100"
+<svg width="16pt" height="16pt" viewBox="0 0 100 100"
   xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1">
-  <path d="M 30 100 L 10 55 C 7 45 14 42 30 40 S 36 30 30 30 C 24 20 24 10 50 0
-          C 76 10 76 20 70 30 C 64 30 54 38 70 40 S 93 45 90 55 L 70 100 z"
-    stroke="#ccc" stroke-width="4" fill="#4a6" />
-  <g stroke="#ddd" stroke-width="2" fill="#bbb" transform="translate(75, 75)">
+  <g stroke="#ddd" stroke-width="2" fill="#bbb" transform="translate(50, 50)">
     <defs>
-      <rect x="-21" y="-3" width="6" height="8" id="tooth" />
+      <rect x="-5" y="-40" width="10" height="20" fill="#aaa" id="tooth" />
     </defs>
     <g><use xlink:href="#tooth" /></g>
+    <g transform="rotate(30,0,0)"><use xlink:href="#tooth" /></g>
     <g transform="rotate(60,0,0)"><use xlink:href="#tooth" /></g>
+    <g transform="rotate(90,0,0)"><use xlink:href="#tooth" /></g>
     <g transform="rotate(120,0,0)"><use xlink:href="#tooth" /></g>
+    <g transform="rotate(150,0,0)"><use xlink:href="#tooth" /></g>
     <g transform="rotate(180,0,0)"><use xlink:href="#tooth" /></g>
+    <g transform="rotate(210,0,0)"><use xlink:href="#tooth" /></g>
     <g transform="rotate(240,0,0)"><use xlink:href="#tooth" /></g>
+    <g transform="rotate(270,0,0)"><use xlink:href="#tooth" /></g>
     <g transform="rotate(300,0,0)"><use xlink:href="#tooth" /></g>
-    <circle cx="0" cy="0" r="15" />
+    <g transform="rotate(330,0,0)"><use xlink:href="#tooth" /></g>
+    <circle cx="0" cy="0" r="30" />
+    <circle cx="0" cy="0" r="25" stroke="#666" fill="#999" />
+    <circle cx="0" cy="0" r="15" stroke="#666" />
+  </g>
+  <g stroke="#ccc" stroke-width="4" fill="#4a6" transform="translate(40,40)scale(0.5,0.5)">
+    <path d="M 30 100 L 10 55 C 7 45 14 42 30 40 S 36 30 30 30 C 24 20 24 10 50 0
+            C 76 10 76 20 70 30 C 64 30 54 38 70 40 S 93 45 90 55 L 70 100 z"
+      stroke="#ccc" stroke-width="4" fill="#4a6" />
   </g>
 </svg>

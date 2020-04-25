@@ -1,0 +1,15 @@
+<?xml version="1.0" standalone="no"?>
+<svg width="16pt" height="16pt" viewBox="0 0 100 100"
+  xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1">
+  <g fill="white" stroke-width="1" stroke="#666">
+    <path d="M 20 95 L 20 5 60 5 80 25 80 95 z" />
+    <path d="M 60 5 60 25 80 25 z" fill="#ddd" />
+  </g>
+  <g stroke-width="3" stroke="#aaa">
+    <line x1="30" y1="20" x2="55" y2="20" />
+    <line x1="30" y1="35" x2="70" y2="35" />
+    <line x1="30" y1="50" x2="70" y2="50" />
+    <line x1="30" y1="65" x2="70" y2="65" />
+    <line x1="30" y1="80" x2="70" y2="80" />
+  </g>
+</svg>

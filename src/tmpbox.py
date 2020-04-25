@@ -52,6 +52,7 @@ def filter_firstline(text):
     ``text`` が 2行以上ある場合、 ``<span>`` タグにはクラス ``multilines``
     が設定される。 CSS はこれを見て 3点リーダーを表示する等の制御を行う。
     '''
+    text = text if text else ""
     lines = text.split("\n")
     return Markup('<span' + (' class="multilines"' if len(lines) > 1 else '') + '>') \
         + lines[0] + Markup('</span>')
@@ -147,7 +148,7 @@ def page_index():
     それ以外の場合、ログインページへのリンクを表示する。
     '''
     # ログイン状態チェック
-    login_session, redirect_obj = verify_login_session()
+    login_session, _ = verify_login_session()
 
     acc_info, dirs = {}, []
     if login_session:
@@ -189,6 +190,20 @@ def post_login():
             request.remote_addr, user_id, password)
         return render_template('login.html', url = location_path, user_id = user_id,
             message_contents = Markup('<p class="error">ユーザー ID またはパスワードが一致しません。</p>'))
+
+@app.route('/logout')
+def page_logout():
+    '''
+    ログアウトページ
+
+    :return: トップページへのリダイレクト
+    '''
+    # ログイン状態チェック
+    login_session, _ = verify_login_session()
+    if login_session:
+        db.delete_login_session(login_session["session_id"])
+
+    return redirect("/")
 
 @app.route('/admin')
 def page_admin():
@@ -571,11 +586,13 @@ def post_directory(dir_id):
 def render_page_directory(login_session, dir, message = ''):
     files = db.get_active_files(dir["directory_id"])
     default_expires = date.today() + timedelta(days = dir["expires_days"])
+    accounts = {n["user_id"]: n for n in db.get_all_accounts()}
 
     upload_form_token = gen_form_token(login_session, "upload")
     delete_form_token = gen_form_token(login_session, "delete")
     return render_template("directory.html",
-        dir = dir, files = files, user_id = login_session["user_id"], expires = default_expires,
+        dir = dir, files = files, user_id = login_session["user_id"],
+        expires = default_expires, accounts = accounts,
         upload_form_token = upload_form_token, delete_form_token = delete_form_token,
         message_contents = message)
 
