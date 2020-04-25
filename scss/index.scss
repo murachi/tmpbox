@@ -1,0 +1,65 @@
+section.directories > table {
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 2pt;
+
+  td, th {
+    padding: 2pt 0.5em;
+  }
+  th {
+    text-align: left;
+    background: linear-gradient(#666, #226 70%, #666);
+
+    &:not(.dirname) {
+      color: #ff9;
+    }
+
+    &.dirname {
+      background: linear-gradient(#c99, #fcc9 70%, #c99);
+    }
+  }
+  td {
+    background: white;
+
+    &.dirname {
+      background: #fcc9;
+
+      a::before {
+        content: url("/static/icon-folder.svg");
+      }
+    }
+  }
+  tr:nth-of-type(2n-1) {
+    td {
+      background: #eed;
+    }
+    td.dirname {
+      background: #ecb9;
+    }
+  }
+}
+
+section.information {
+  margin: 1em;
+  padding: 1em;
+  border-radius: 1em;
+  border: 1px solid #0008;
+  background-color: white;
+
+  > h1 {
+    font-size: 26pt;
+    text-align: center;
+    margin: 1em 20%;
+    line-height: 160%;
+    background: linear-gradient(transparent 40%, #6f9);
+  }
+
+  > section > h1 {
+    font-size: 16pt;
+    margin: 0.5em 0;
+    padding: 0 0 0 1.2em;
+    width: 80%;
+    line-height: 160%;
+    border-image: linear-gradient(#ff95, #f62) 1 / 0 0 4pt 1em;
+  }
+}

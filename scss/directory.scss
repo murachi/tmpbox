@@ -1,0 +1,58 @@
+section.status.directory {
+  margin: 1em;
+  padding: 1em;
+  font-size: 10pt;
+  background: #49f3;
+  border-bottom: 2px solid #49f7;
+  border-right: 1px solid #49fc;
+
+  > h1 {
+    margin: 0.5em 0;
+    font-size: 12pt;
+    color: black;
+
+    &::before {
+      content: "[";
+      color: red;
+      margin-right: 0.5em;
+    }
+    &::after {
+      content: "]";
+      color: red;
+      margin-left: 0.5em;
+    }
+  }
+}
+
+section.files table {
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 2pt;
+
+  td, th {
+    padding: 2pt 0.5em;
+  }
+  th {
+    text-align: left;
+    background: linear-gradient(#666, #226 70%, #666);
+
+    &:not(.filename) {
+      color: #ff9;
+    }
+
+    &.filename {
+      background: linear-gradient(#994, #cc99 70%, #994);
+    }
+  }
+  td {
+    background: white;
+
+    &.filename {
+      background: #cc99;
+
+      a::before {
+        content: url("/static/icon-file.svg");
+      }
+    }
+  }
+}

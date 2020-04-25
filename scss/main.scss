@@ -6,11 +6,11 @@ $font-family: 'Noto Sans JP','Fira Mono',monospace;
 body {
   font-family: $font-family;
   color: #333;
-  background: #ccc4;
+  background: #ddf;
 }
 
 #message_area > p {
-  font-size: small;
+  font-size: 10pt;
   margin: 0;
   padding: 0.4ex 1ex;
 
@@ -34,6 +34,7 @@ header {
                 repeating-linear-gradient(120deg, #fff0, #ff06 2pt, #fff0 2pt, #0ff6 4pt, #fff0 4pt, #f0f6 6pt);
 
     a {
+      display: block;
       text-decoration: none;
 
       &:link, &:visited, &:active, &:hover {
@@ -44,31 +45,95 @@ header {
 }
 
 .main {
+  > h1 {
+    margin: 1em 0;
+    padding: 0;
+    font-size: 22pt;
+    color: #240;
+    background: linear-gradient(transparent 40%, #cc4);
+    line-height: 140%;
+  }
+}
+
+table.form {
+  margin: 1em 2em;
+  table-layout: fixed;
+  border-collapse: collapse;
+  border: 3pt double #666;
+
+  td, th {
+    border: 1px solid #666;
+    padding: 2pt 1em;
+  }
+
+  th {
+    text-align: left;
+    background: #cec;
+    width: 10em;
+    min-width: 5em;
+  }
+
+  td {
+    width: 40em;
+    min-width: 20em;
+  }
+
+  textarea.summary {
+    width: 100%;
+    min-width: 20em;
+    height: 6em;
+    min-height: 6em;
+  }
+
   input.error, select.error, textarea.error {
     background-color: yellow;
   }
 }
 
 section.login-message {
-  border-right: 2px solid #666;
-  border-bottom: 2px solid #666;
-  background-color: white;
-  padding: 0.5em 0.5em 0.25em;
   margin: 0.5em;
 
-  nav.menu {
-    float: right;
-    margin: 0;
-  }
+  > div {
+    border-right: 2px solid #666;
+    border-bottom: 2px solid #666;
+    background-color: white;
+    padding: 1pt 0.5em;
 
-  p {
-    font-size: 10pt;
-    margin: 0;
+    > * {
+      margin: 4pt 0;
+    }
+
+    nav.menu {
+      float: right;
+    }
+
+    p {
+      font-size: 10pt;
+    }
   }
 
   &::after {
     content: "";
     display: table;
     clear: both;
+  }
+}
+
+section.login {
+  margin: 1em auto;
+  padding: 2em;
+  width: 40em;
+  max-width: 90%;
+  background: white;
+  border: 2pt solid #0004;
+  border-radius: 2em;
+
+  table {
+    table-layout: fixed;
+    margin: auto;
+  }
+
+  > form > p {
+    text-align: center;
   }
 }

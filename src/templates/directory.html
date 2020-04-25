@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}ディレクトリ: {{ dir["directory_name"] }}{% endblock %}
 {% block additional_head %}
+<link rel="stylesheet" href="/static/directory.css">
 <script src="/static/show-message.js"></script>
 <script src="/static/directory.js"></script>
 {% endblock %}
@@ -13,7 +14,7 @@
   <form name="upload" method="POST" enctype="multipart/form-data">
     <input type="hidden" name="c" value="up">
     <input type="hidden" name="tk" value="{{ upload_form_token }}">
-    <table>
+    <table class="form">
       <tr>
         <th>ファイル</th>
         <td>
@@ -47,7 +48,7 @@
     <input type="hidden" name="fid" value="">
     <table>
       <tr>
-        <th rowspan="2">ファイル名</th>
+        <th rowspan="2" class="filename">ファイル名</th>
         <th>登録ユーザー</th>
         <th rowspan="2">有効期限</th>
         <th rowspan="2">説明</th>
@@ -57,11 +58,12 @@
         <th>登録日</th>
       </tr>
       {% for file in files %}
+      {% set registered_user = accounts.get(file["registered_user_id"]) %}
       <tr>
-        <td id="filename-{{ file['file_id'] }}" rowspan="2">
+        <td id="filename-{{ file['file_id'] }}" class="filename" rowspan="2">
           <a href="/{{ file['directory_id'] }}/{{ file['file_id'] }}">{{ file["origin_file_name"] }}</a>
         </td>
-        <td>{{ file["registered_user_name" if "registered_user_name" in file else file["registered_user_id"]] }}</td>
+        <td>{{ registered_user["display_name"] if registered_user else file["registered_user_id"] }}</td>
         <td rowspan="2">{{ file["expires"] | dispdate }}</td>
         <td rowspan="2">{{ file["summary"] | markup_summary }}</td>
         <td rowspan="2">
@@ -69,6 +71,9 @@
           <button class="delete" id="filedel-{{ file['file_id'] }}">削除...</button>
           {% endif %}
         </td>
+      </tr>
+      <tr>
+        <td>{{ file["registered_date"] | dispdate }}</td>
       </tr>
       {% endfor %}
     </table>

@@ -1,38 +1,78 @@
 {% extends "base.html" %}
 {% block title %}トップページ{% endblock %}
+{% block additional_head %}
+<link rel="stylesheet" href="/static/index.css">
+{% endblock %}
 {% block header %}
 <section class="login-message">
-  {% if user_id %}
-  <nav class="menu">
-    <a href="/profile"><img src="/static/icon-profile-setting.svg" alt="ユーザー設定"></a>
-    <a href="/logout"><img src="/static/icon-logout.svg" alt="ログアウト"></a>
-  </nav>
-  <p>
-    こんにちは、 {{ display_name }}さん。
-    {% if is_admin %}
-    <a href="/admin">管理者画面はこちら</a>。
+  <div>
+    {% if user_id %}
+    <nav class="menu">
+      <a href="/profile"><img src="/static/icon-profile-setting.svg" alt="ユーザー設定"></a>
+      <a href="/logout"><img src="/static/icon-logout.svg" alt="ログアウト"></a>
+    </nav>
+    <p>
+      こんにちは、 {{ display_name }}さん。
+      {% if is_admin %}
+      <a href="/admin">管理者画面はこちら</a>。
+      {% endif %}
+    </p>
+    {% else %}
+    <p><a href="/login">こちらからログインしてください。</a></p>
     {% endif %}
-  </p>
-  {% else %}
-  <p><a href="/login">こちらからログインしてください。</a></p>
-  {% endif %}
+  </div>
 </section>
 {% endblock %}
 {% block main %}
+{% if user_id %}
 <section class="directories">
   <table>
     <tr>
-      <th>ディレクトリ名</th>
+      <th class="dirname">ディレクトリ名</th>
       <th>作成日</th>
       <th>説明</th>
     </tr>
     {% for dir in directories %}
     <tr>
-      <td><a href="/{{ dir['directory_id'] }}">{{ dir["directory_name"] }}</a></td>
+      <td class="dirname"><a href="/{{ dir['directory_id'] }}">{{ dir["directory_name"] }}</a></td>
       <td>{{ dir["create_date"] | dispdate }}</td>
       <td>{{ dir["summary"] | firstline }}</td>
     </tr>
     {% endfor %}
   </table>
 </section>
+{% else %}
+<section class="information">
+  <h1>tmpbox について</h1>
+
+  <section>
+    <h1>これはなに?</h1>
+    <p>
+      何の変哲もないただのアップローダーです。
+      最近 WebDAV が Windows からだと非常に使いづらいため、
+      ついカッとなって作ってしまいました。
+    </p>
+  </section>
+
+  <section>
+    <h1>アクセスするには?</h1>
+    <p>
+      ディレクトリにアクセスするには、このサーバーを設定した管理者に連絡して
+      アカウントを登録してもらう必要があります。
+    </p>
+    <p>
+      サインアップのためのページは用意しておりません
+      (それが必要になるようなユースケースを想定していません)。あしからず。
+    </p>
+  </section>
+
+  <section>
+    <h1>うちのサーバーにも建ててみたい</h1>
+    <p>
+      <a href="https://github.com/murachi/tmpbox">github</a> にて公開しています。
+      ご自由にどうぞ。
+    </p>
+  </section>
+</section>
+{% endif %}
 {% endblock %}
