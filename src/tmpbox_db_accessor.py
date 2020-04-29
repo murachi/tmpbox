@@ -720,7 +720,7 @@ class TmpboxDB:
             .one()
         directory.directory_name = dir_name
         directory.expires_days = expires_days
-        directory.summary = summary
+        directory.summary = summary or None
 
         return directory.to_dict(with_relation = False)
 
