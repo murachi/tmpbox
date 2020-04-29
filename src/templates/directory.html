@@ -8,7 +8,7 @@
 {% block main %}
 <section class="status directory">
   <h1>{{ dir["directory_name"] }}</h1>
-  {{ dir["summary"] | markup_summary }}
+  {{ dir["summary"] | markup_summary(default_summary = "(ディレクトリの説明はありません)") }}
 </section>
 <section class="upload">
   <form name="upload" method="POST" enctype="multipart/form-data">

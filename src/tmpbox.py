@@ -58,7 +58,7 @@ def filter_firstline(text):
         + lines[0] + Markup('</span>')
 
 @app.template_filter('markup_summary')
-def filter_markup_summary(text):
+def filter_markup_summary(text, default_summary = "(no summary text)"):
     '''
     概要テキストを HTML 化するフィルター
 
@@ -68,7 +68,8 @@ def filter_markup_summary(text):
     ``<p>`` タグに包んだ HTML テキストを返す。
     ``text`` 中の改行は ``<br>`` タグに変換される。
     '''
-    return (Markup('<p>') + text + Markup('</p>')).replace("\n", Markup("<br>"))
+    return (Markup('<p>') + (text or default_summary)
+        + Markup('</p>')).replace("\n", Markup("<br>"))
 
 def verify_login_session():
     '''
