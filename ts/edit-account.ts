@@ -6,8 +6,12 @@ window.addEventListener("DOMContentLoaded", function() {
   account_form.addEventListener("submit", function(ev) {
     sm.clear();
     sm.clearHighlight(this);
-    // validation
+    // trimming
     let user_id_elem = this.elements["id"] as HTMLInputElement;
+    if (user_id_elem) user_id_elem.value = user_id_elem.value.trim();
+    let disp_name_input = this.elements["dn"] as HTMLInputElement;
+    disp_name_input.value = disp_name_input.value.trim();
+    // validation
     if (user_id_elem && !validator.validateNameToken(user_id_elem.value)) {
       sm.highlight(user_id_elem);
       sm.addMessage(

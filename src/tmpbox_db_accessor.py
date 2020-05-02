@@ -715,6 +715,14 @@ class TmpboxDB:
         :param str summary: ディレクトリの説明
         :return: ディレクトリ情報の辞書
         '''
+        # 既存ディレクトリ名のチェック
+        existing_dir = session.query(Directory.directory_id) \
+            .filter(Directory.directory_id != dir_id, Directory.directory_name == dir_name,
+                Directory.is_deleted == false()) \
+            .one_or_none()
+        if existing_dir:
+            raise TmpboxDBDuplicatedException("'{0}' という名前のディレクトリは既に存在します。".format(dir_name))
+
         directory = session.query(Directory) \
             .filter(Directory.directory_id == dir_id, Directory.is_deleted == false()) \
             .one()

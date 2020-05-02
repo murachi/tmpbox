@@ -5,6 +5,9 @@ window.addEventListener("DOMContentLoaded", function() {
   upload_form.addEventListener("submit", function(ev) {
     sm.clear();
     sm.clearHighlight(this);
+    // trimming
+    const summary_input = this.elements["sm"] as HTMLInputElement;
+    summary_input.value = summary_input.value.trim();
     // validation
     if (!this.elements["fp"].value) {
       sm.addMessage("ファイルを選択してください。", sm.MessageType.error);

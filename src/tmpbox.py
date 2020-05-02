@@ -264,8 +264,8 @@ def post_new_account():
     if not verify_form_token(login_session, "new-account", form_token):
         return abort(400)
 
-    user_id = request.form["id"]
-    display_name = request.form["dn"]
+    user_id = request.form["id"].strip()
+    display_name = request.form["dn"].strip()
     password = secrets.token_urlsafe(int(conf["Security"]["AutoPasswordLength"]))
 
     def error_page(msg):
@@ -332,7 +332,7 @@ def post_edit_account(user_id):
     if not verify_form_token(login_session, "edit-account", form_token):
         return abort(400)
 
-    display_name = request.form["dn"]
+    display_name = request.form["dn"].strip()
     want_new_password = request.form["pwr"] == "1"
     password = secrets.token_urlsafe(int(conf["Security"]["AutoPasswordLength"])) if want_new_password else None
 
@@ -397,8 +397,8 @@ def post_new_directory():
     if not verify_form_token(login_session, "new-directory", form_token):
         return abort(400)
 
-    dir_name = request.form["nm"]
-    summary = request.form["sm"]
+    dir_name = request.form["nm"].strip()
+    summary = request.form["sm"].strip()
     expires_days = int(request.form["ed"])
     permissions = [n[1] for n in raw_form if n[0] == "pm"]
 
@@ -416,6 +416,8 @@ def post_new_directory():
             users = users,
             message_contents = Markup('<p class="error">') + msg + Markup('</p>'))
 
+    if dir_name == "":
+        return error_page("ディレクトリ名を入力してください。")
     if not permissions:
         return error_page("参照権限ユーザーを一人以上選択してください。")
 
@@ -478,6 +480,11 @@ def post_edit_directory(dir_id):
     if request.content_length > int(conf["Security"]["MaxFormLength"]):
         return abort(400)
 
+    # ID のディレクトリ情報を取得 (取れない場合は 404)
+    target_dir = db.get_directory(dir_id)
+    if not target_dir:
+        return abort(404)
+
     raw_form = urllib.parse.parse_qsl(request.get_data(as_text = True))
 
     # フォームトークンの検証に失敗した場合は Bad Request
@@ -485,27 +492,33 @@ def post_edit_directory(dir_id):
     if not verify_form_token(login_session, "edit-directory", form_token):
         return abort(400)
 
-    dir_name = request.form["nm"]
-    summary = request.form["sm"]
+    dir_name = request.form["nm"].strip()
+    summary = request.form["sm"].strip()
     expires_days = int(request.form["ed"])
+    target_dir.update({
+        "directory_name": dir_name,
+        "summary": summary,
+        "expires_days": expires_days,
+    })
     permissions = [n[1] for n in raw_form if n[0] == "pm"]
 
     users = db.get_all_accounts()
     for user in users:
         user["allow"] = user["user_id"] in permissions
 
-    form_token = gen_form_token(login_session, "edit-directory")
-    if not permissions:
+    def error_page(msg):
+        form_token = gen_form_token(login_session, "edit-directory")
         return render_template("edit-directory.html", is_new = False, form_token = form_token,
-            target_dir = {
-                "directory_name": dir_name,
-                "summary": summary,
-                "expires_days": expires_days,
-            },
-            users = users,
-            message_contents = Markup('<p class="error">参照権限ユーザーを一人以上選択してください。</p>'))
+            target_dir = target_dir, users = users,
+            message_contents = Markup('<p class="error">') + msg + Markup('</p>'))
 
-    directory = db.update_directory(dir_id, dir_name, expires_days, summary)
+    if not permissions:
+        return error_page("参照権限ユーザーを一人以上選択してください。")
+    try:
+        directory = db.update_directory(dir_id, dir_name, expires_days, summary)
+    except TmpboxDBDuplicatedException as exc:
+        return error_page("".join(exc.args))
+
     db.update_permission(dir_id, permissions)
 
     return render_template("edit-directory.html", is_new = False, form_token = form_token,
@@ -565,7 +578,7 @@ def post_directory(dir_id):
             file.save(fout)
             tmp_path = fout.name
         expires = datetime.strptime(request.form["ep"], "%Y-%m-%d").date()
-        summary = request.form["sm"]
+        summary = request.form["sm"].strip()
         file_id = db.register_file(file.filename, dir_id, expires, login_session["user_id"], summary)
         os.rename(tmp_path, os.path.join(repository_root, upload_files_dir, str(file_id)))
         message = 'ファイル "{}" を登録しました。'.format(file.filename)
@@ -659,7 +672,7 @@ def post_profile():
     user = db.get_account(login_session["user_id"])
     token = gen_form_token(login_session, "profile")
 
-    display_name = request.form["dn"]
+    display_name = request.form["dn"].strip()
     new_password = None
     want_change_password = request.form["pwm"] == "1"
     if want_change_password:
