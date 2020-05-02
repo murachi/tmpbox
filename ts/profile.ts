@@ -6,6 +6,9 @@ window.addEventListener("DOMContentLoaded", function() {
   acc_form.addEventListener("submit", function(ev) {
     sm.clear();
     sm.clearHighlight(this);
+    // trimming
+    const disp_name_input = this.elements["dn"] as HTMLInputElement;
+    disp_name_input.value = disp_name_input.value.trim();
     // validation
     const want_mod_pw = (document.querySelector("#password_modify_yes") as HTMLInputElement).checked;
     if (want_mod_pw) {

@@ -5,7 +5,19 @@ window.addEventListener("DOMContentLoaded", function() {
   directory_form.addEventListener("submit", function(ev) {
     sm.clear();
     sm.clearHighlight(this);
+    // trimming
+    const name_input = this.elements["nm"] as HTMLInputElement;
+    name_input.value = name_input.value.trim();
+    const summary_input = this.elements["sm"] as HTMLInputElement;
+    summary_input.value = summary_input.value.trim();
     // validation
+    if (name_input.value === "") {
+      sm.highlight(name_input);
+      sm.addMessage("ディレクトリ名を入力してください。", sm.MessageType.error);
+      ev.stopPropagation();
+      ev.preventDefault();
+      return;
+    }
     let permission_elems = this.elements["pm"] as RadioNodeList;
     let checked_any = false;
     for (let i = 0; i < permission_elems.length; ++i) {
