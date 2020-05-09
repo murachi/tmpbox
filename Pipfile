@@ -1,0 +1,17 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+flask = "*"
+flask-httpauth = "*"
+sqlalchemy = "*"
+psycopg2 = "*"
+pymysql = "*"
+uwsgi = "*"
+
+[requires]
+python_version = "3.8"

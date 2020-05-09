@@ -12,6 +12,7 @@ default_session_expires_minutes = 120
 default_file_expires_days = 14
 max_form_length = 10000
 max_form_length_with_file = 200 * 1024 * 1024
+default_debug_url_port = "6543"
 
 prompt_msg = {
     "ja_JP": {
@@ -51,6 +52,10 @@ prompt_msg = {
         "admin-password-repeat": [
             "念のため、もう一度 >> ",
         ],
+        "debug-url-port": [
+            "uWSGI を用いてデバッグ実行を行う際に使用するポート番号を指定してください。",
+            "([{0}]) >> ",
+        ],
         "error-useradd": [
             "UNIX アカウントの追加または変更に失敗しました。",
             "管理者権限が必要です。 sudo をお試しください。",
@@ -67,6 +72,9 @@ prompt_msg = {
         ],
         "error-admin-password-repeat": [
             "入力したパスワードが一致しません。",
+        ],
+        "error-url-port": [
+            "ポート番号は 1024 〜 65535 の範囲内の整数を指定してください。",
         ],
     },
     "C": {
@@ -106,6 +114,10 @@ prompt_msg = {
         "admin-password-repeat": [
             "Password again >> ",
         ],
+        "debug-url-port": [
+            "Enter the port number to be used when performing debug execution using uWSGI.",
+            "([{0}]) >> ",
+        ],
         "error-useradd": [
             "Adding or modifying UNIX user account failed.",
             "You need to change superuser. Retry with sudo.",
@@ -122,6 +134,9 @@ prompt_msg = {
         ],
         "error-admin-password-repeat": [
             "There's no match between your entered password.",
+        ],
+        "error-url-port": [
+            "You need to specify digit between 1024 <= N <= 65535 for port number.",
         ],
     }
 }
@@ -208,6 +223,21 @@ def validate_DB_connection(conn_str):
         return False
     return True
 
+def validate_URL_port(port_num):
+    '''
+    通信ポート番号として入力された値を検証する
+
+    :param str port_num: 通信ポート番号として入力された値
+    :return: 問題なければ ``True`` を、それ以外の場合は ``False`` を返す。
+
+    ポート番号は 1024 〜 65535 の範囲内の整数でなければならない。
+    '''
+    if port_num.isdigit() and 1024 <= int(port_num) <= 65535:
+        return True
+    else:
+        notice(prompt_msg["error-url-port"])
+        return False
+
 if __name__ == '__main__':
     # tmpbox を実行する UNIX アカウントを設定
     re_name_token = re.compile(r"[a-z]\w*\Z", re.I | re.A)
@@ -245,9 +275,14 @@ if __name__ == '__main__':
     uid, gid = pwd.getpwnam(unix_user)[2], grp.getgrnam(unix_group)[2]
     file_dir = prompt(prompt_msg["repository-root"], None, default_file_dir)
     try:
-        os.makedirs(file_dir, exist_ok = True)
+        os.makedirs(os.path.join(file_dir, "run"), exist_ok = True)
+        os.makedirs(os.path.join(file_dir, "log"), exist_ok = True)
         os.chown(file_dir, uid, gid)
+        os.chown(os.path.join(file_dir, "run"), uid, gid)
+        os.chown(os.path.join(file_dir, "log"), uid, gid)
         os.chmod(file_dir, 0o2750)
+        os.chmod(os.path.join(file_dir, "run"), 0o2750)
+        os.chmod(os.path.join(file_dir, "log"), 0o2750)
     except PermissionError:
         notice(prompt_msg["error-makedirs"])
         sys.exit(1)
@@ -348,3 +383,47 @@ if __name__ == '__main__':
     }
     with open(os.path.join("src", "conf.d", "logging.ini"), "w") as fout:
         logconf.write(fout)
+
+    # uWSGI 用設定ファイル出力
+    uwsgi_conf = configparser.ConfigParser(interpolation = None)
+    uwsgi_conf.optionxform = str
+    uwsgi_conf["uwsgi"] = {
+        "uid": unix_user,
+        "gid": unix_group,
+        "current_release": os.path.join(os.path.abspath(os.path.dirname(__file__)), 'src'),
+        "chdir": "%(current_release)",
+        "wsgi-file": "%(current_release)/tmpbox.py",
+        "callable": "app",
+        "socket": os.path.join(file_dir, "run", "uwsgi-tmpbox.sock"),
+        "pidfile": os.path.join(file_dir, "run", "uwsgi-tmpbox.pid"),
+        "chmod-socket": "666",
+        "vacuum": "true",
+        "daemonize": os.path.join(file_dir, "log", "uwsgi-tmpbox.log"),
+        "log-reopen": "true",
+        "log-maxsize": 5242880,
+        "logfile-chown": "on",
+        "logfile-chmod": "644",
+        "processes": 1,
+        "threads": 4,
+        "max-requests": 500,
+        "max-requests-delta": 300,
+        "master": "true",
+    }
+    with open(os.path.join("src", "conf.d", "uwsgi-daemon.ini"), "w") as fout:
+        uwsgi_conf.write(fout)
+
+    debug_url_port = prompt(prompt_msg["debug-url-port"], validate_URL_port, default_debug_url_port)
+    uwsgi_conf = configparser.ConfigParser(interpolation = None)
+    uwsgi_conf.optionxform = str
+    uwsgi_conf["uwsgi"] = {
+        "uid": unix_user,
+        "gid": unix_group,
+        "current_release": os.path.join(os.path.abspath(os.path.dirname(__file__)), 'src'),
+        "chdir": "%(current_release)",
+        "wsgi-file": "tmpbox.py",
+        "callable": "app",
+        "http": "0.0.0.0:{}".format(int(debug_url_port)),
+        "env": "FLASK_ENV=development",
+    }
+    with open(os.path.join("src", "conf.d", "uwsgi-debug.ini"), "w") as fout:
+        uwsgi_conf.write(fout)
