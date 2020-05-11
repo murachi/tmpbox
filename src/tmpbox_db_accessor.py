@@ -311,7 +311,7 @@ class File(Base):
     expires = Column(Date, nullable = False)
     registered_user_id = Column(Unicode(50), nullable = False)
     registered_date = Column(Date, nullable = False, server_default = functions.current_date())
-    summary = Column(Unicode)
+    summary = Column(UnicodeText)
     is_deleted = Column(Boolean, nullable = False, server_default = false())
 
     __table_args__ = (
