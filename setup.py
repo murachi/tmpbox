@@ -188,7 +188,7 @@ def validate_unix_group(grname):
     この関数では、指定されたグループ名が実在することを確認する。
     指定したユーザーがグループに属しているかどうかの確認は別途行うこと。
     '''
-    if not re.match(r"\w[\w\d_]*\Z", grname, re.A | re.I):
+    if not re.match(r"[a-z][\w\-]*\Z", grname, re.A | re.I):
         return False
     gr_info = grp.getgrnam(grname)
     if not gr_info:
