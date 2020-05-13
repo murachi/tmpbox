@@ -240,7 +240,7 @@ def validate_URL_port(port_num):
 
 if __name__ == '__main__':
     # tmpbox を実行する UNIX アカウントを設定
-    re_name_token = re.compile(r"[a-z]\w*\Z", re.I | re.A)
+    re_name_token = re.compile(r"[a-z][\w\-]*\Z", re.I | re.A)
     unix_user = prompt(prompt_msg["UNIX-user"], lambda x: re_name_token.match(x), default_unix_user)
     try:
         pwd.getpwnam(unix_user)

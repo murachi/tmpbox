@@ -1,6 +1,6 @@
 import re
 
-re_name_token = re.compile(r"[a-z]\w*\Z", re.I | re.A)
+re_name_token = re.compile(r"[a-z][\w\-]*\Z", re.I | re.A)
 re_uri_unreserved = re.compile(r"[\w\.\-\~]+$", re.A)
 
 def validateNameToken(val):

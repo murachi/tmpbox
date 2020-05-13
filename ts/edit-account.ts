@@ -15,7 +15,7 @@ window.addEventListener("DOMContentLoaded", function() {
     if (user_id_elem && !validator.validateNameToken(user_id_elem.value)) {
       sm.highlight(user_id_elem);
       sm.addMessage(
-        "ユーザーID は半角英字で始まり半角英数字とアンダーバー _ のみで構成される名前にしてください。",
+        "ユーザーID は半角英字で始まり半角英数字とアンダーバー _ 、ハイフン - のみで構成される名前にしてください。",
         sm.MessageType.error);
       ev.stopPropagation();
       ev.preventDefault();

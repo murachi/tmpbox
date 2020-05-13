@@ -18,6 +18,6 @@ export namespace validator {
   主にユーザー ID に使用する名前で用いるルールとしている。
   */
   export function validateNameToken(val: string): boolean {
-    return /^[a-z]\w*$/i.test(val);
+    return /^[a-z][\w\-]*$/i.test(val);
   }
 };

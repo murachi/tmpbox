@@ -275,7 +275,7 @@ def post_new_account():
 
     if not validator.validateNameToken(user_id):
         return error_page(
-            "ユーザーID は半角英字で始まり半角英数字とアンダーバー _ のみで構成される名前にしてください。")
+            "ユーザーID は半角英字で始まり半角英数字とアンダーバー _ 、ハイフン - のみで構成される名前にしてください。")
 
     try:
         new_user = db.register_account(user_id, display_name, password)
