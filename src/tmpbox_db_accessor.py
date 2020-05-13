@@ -4,7 +4,7 @@ from sqlalchemy import create_engine, Column, Boolean, Integer, Unicode, Unicode
     Date, DateTime, CHAR, ForeignKey, PrimaryKeyConstraint, Index, true, false
 from sqlalchemy.orm import Query, relationship
 from sqlalchemy.orm.session import Session
-from sqlalchemy.sql import functions, extract
+from sqlalchemy.sql import functions, extract, func, text
 from werkzeug.security import generate_password_hash, check_password_hash
 
 Base = declarative_base()
