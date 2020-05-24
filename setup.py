@@ -281,9 +281,9 @@ if __name__ == '__main__':
     uid, gid = pwd.getpwnam(unix_user)[2], grp.getgrnam(unix_group)[2]
     file_dir = prompt(prompt_msg["repository-root"], None, default_file_dir)
     try:
-        os.makedirs(filedir, exist_ok = True)
-        os.chown(filedir, uid, gid)
-        os.chmod(filedir, 0o2755)
+        os.makedirs(file_dir, exist_ok = True)
+        os.chown(file_dir, uid, gid)
+        os.chmod(file_dir, 0o2755)
         for subdir, permission in repository_dirs:
             dir = os.path.join(file_dir, subdir)
             os.makedirs(dir, exist_ok = True)
