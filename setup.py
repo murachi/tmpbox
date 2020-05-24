@@ -6,6 +6,12 @@ from tmpbox_db_accessor import TmpboxDB
 
 default_unix_user = "tmpbox"
 default_file_dir = "/var/tmpbox"
+repository_dirs = [
+    ("run", 0o2755),
+    ("log", 0o2750),
+    ("temp", 0o2750),
+    ("upfiles", 0o2750),
+]
 
 default_auto_password_length = 12
 default_session_expires_minutes = 120
@@ -275,14 +281,14 @@ if __name__ == '__main__':
     uid, gid = pwd.getpwnam(unix_user)[2], grp.getgrnam(unix_group)[2]
     file_dir = prompt(prompt_msg["repository-root"], None, default_file_dir)
     try:
-        os.makedirs(os.path.join(file_dir, "run"), exist_ok = True)
-        os.makedirs(os.path.join(file_dir, "log"), exist_ok = True)
+        os.makedirs(file_dir, exist_ok = True)
         os.chown(file_dir, uid, gid)
-        os.chown(os.path.join(file_dir, "run"), uid, gid)
-        os.chown(os.path.join(file_dir, "log"), uid, gid)
-        os.chmod(file_dir, 0o2750)
-        os.chmod(os.path.join(file_dir, "run"), 0o2750)
-        os.chmod(os.path.join(file_dir, "log"), 0o2750)
+        os.chmod(file_dir, 0o2755)
+        for subdir, permission in repository_dirs:
+            dir = os.path.join(file_dir, subdir)
+            os.makedirs(dir, exist_ok = True)
+            os.chown(dir, uid, gid)
+            os.chmod(dir, permission)
     except PermissionError:
         notice(prompt_msg["error-makedirs"])
         sys.exit(1)
