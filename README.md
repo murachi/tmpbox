@@ -36,4 +36,91 @@
    $ git clone https://github.com/murachi/tmpbox.git
    ```
 1. プロジェクトディレクトリ下に移動し、 `setup.sh` を実行します。これにより、 pipenv による Python 仮想環境の構築と依存ライブラリのインストールが行われ、さらに `setup.py` スクリプトが起動して対話式でのセットアップが実行されます。
-   - UNIX アカウントのユーザー名またはグループ名は、 Web サーバーから UNIX ソケット通信が可能になるように設定する必要があります。
+   - tmpbox を動かす UNIX ユーザーとグループを指定します。通常はデフォルトの `tmpbox` のままにしておくべきです。
+   - tmpbox が使用するファイルを置く場所を指定します。ここに、アップロードされたファイルの実体、ログファイル、デーモン実行時の PID やソケットファイルなどが書き出されます。
+   - DB への接続文字列を URI 形式で入力します。書式は以下のとおりです。
+     ```
+     {driver}://{DB account id}:{password}@{host name}/{DB name}
+     ```
+     - `{driver}` ... DB 接続に使用するドライバ名を指定します。
+       - PostgreSQL を使用する場合、単に `postgresql` と記述すれば ok です。
+       - MySQL を使用する場合、 (コンソールに表示される例とは裏腹に) `mysql+pymysql` と記述してください。
+       - それ以外のドライバを使用したい場合は、独自にライブラリをインストールする等の対応をお願いします。
+     - 例えば同一ホスト上で動作する MySQL サーバーに、 DB 名 `tmpbox` で DB を作成し、 DB ユーザー名が `tb-master`、パスワードが `tbpass123` である場合、接続文字列は以下のとおりになります。
+       ```
+       mysql+pymysql://tb-master:tbpass123@localhost/tmpbox
+       ```
+   - tmpbox で使用する管理者用アカウントを登録します。アカウント情報として、ユーザー ID、表示名、パスワードの入力を求められます。
+   - tmpbox をデバッグ実行する際に使用するポート番号を指定します。実際にデバッグ実行を行い、それを別のホストから接続して試す場合、当該ポートによる通信を事前に開放しておく必要があります。
+1. 静的コンテンツのためのセットアップを行います。具体的には、プロジェクトディレクトリ下にて以下のコマンドを実行します。
+   ```console
+   $ npm ci
+   $ ./build.sh
+   ```
+   `npm ci` コマンドにより、 TypeScript および scss のトランスパイラ環境構築と、いくつかのクライアントサイドライブラリのセットアップが実行されます。 `build.sh` を実行することにより、トランスパイルの実行、および必要となる JavaScript ファイルのコピーなどが行われます。
+1. 動作確認の為、 tmpbox をデバッグ実行してみましょう。リモートサーバー上で実行する場合は、まず `setup.sh` 実行時に最後に入力したデバッグ用のポートが開放されていることを確認してください。その後、以下のコマンドを実行してください。
+   ```console
+   $ cd src/
+   $ sudo ./run.sh
+   ```
+   uWSGI が非デーモンモードで起動します。この状態で、 http://example.com:6543 のようなアドレス指定にて tmpbox Web アプリケーションにアクセスできるはずです (リモートサーバーではなく実端末上での実行であれば http://localhost:6543 のようなアドレス指定でアクセスできると思います)。起動中は Web から操作するたびに都度コンソールにログが出力されます。停止したい場合は Ctrl-C キーを押下します。
+1. tmpbox をサービスに登録します。以下に、 systemd を用いたサービス登録の設定ファイル例を示します。
+   ```ini
+   [Unit]
+   Description=Tmpbox service on uWSGI
+   After=network.target
+   ConditionPathExists=/path/to/project-of/tmpbox
+
+   [Service]
+   Environment="PIPENV_VENV_IN_PROJECT=1"
+   WorkingDirectory=/path/to/project-of/tmpbox
+   ExecStart=/usr/local/bin/pipenv run uwsgi --ini src/conf.d/uwsgi-daemon.ini
+   ExecReload=/usr/local/bin/pipenv run uwsgi --stop /var/tmpbox/run/uwsgi-tmpbox.pid
+   ExecStop=/usr/local/bin/pipenv run uwsgi --stop /var/tmpbox/run/uwsgi-tmpbox.pid
+   Restart=on-failure
+   Type=forking
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+   `ConditionPathExists` にはプロジェクトディレクトリを指定してください。
+
+   `ExecReload` および `ExecStop` に指定するコマンドの引数で PID ファイルへのパスを指定していますが、 `setup.sh` 実行時に「tmpbox が使用するファイルを置く場所」としてデフォルト値以外の場所を指定していた場合は、このパス名が指定した場所に応じて解決するよう適宜修正してください。
+
+   これを `/etc/system.d/system/tmpbox.service` ファイルとして保存した場合、以下のコマンドにてサービスに登録し、起動することで、以後、 OS 再起動後も自動的に起動するようになります。
+   ```console
+   $ sudo systemctl enable tmpbox.service
+   $ sudo systemctl start tmpbox.service
+   ```
+1. Nginx の設定を行います。以下は、 tmpbox 用にサブドメイン `tmpbox.example.jp` を設定すると仮定した設定例になります。これを `/etc/nginx/sites-available/tmpbox` ファイルとして保存し、更にそのファイルへのシンボリックリンクを `/etc/nginx/sites-enabled/tmpbox` として張っておきます。
+   ```nginx
+   server {
+     listen 80;
+     listen [::]:80;
+     server_name tmpbox.example.jp;
+
+     location / {
+       include uwsgi_params;
+       uwsgi_pass unix:/var/tmpbox/run/uwsgi-tmpbox.sock;
+       client_max_body_size 200M;
+     }
+
+     location ^~ /static/ {
+       include /etc/nginx/mime.types;
+       root /path/to/project-of/tmpbox/src/;
+       try_files $uri $uri/ =404;
+     }
+   }
+   ```
+   `location / {...}` ディレクティブ内の `uwsgi_pass` 変数には、 uWSGI アプリケーションサーバーとして動作している tmpbox が通信用に生成している UNIX ソケットファイルのパスを指定します。 `setup.sh` 実行時に「tmpbox が使用するファイルを置く場所」としてデフォルト値以外の場所を指定していた場合は、このパス名が指定した場所に応じて解決するよう適宜修正してください。 `client_max_body_size` には想定されるアップロードファイルサイズの上限相当の値を指定します (ここで指定するのは POST 送信可能なサイズの上限なので、実際のファイルサイズの上限はこれよりもう少し小さくなるでしょう)。
+
+   `location ^~ /static/ {...}` ディレクティブの設定は、プロジェクトの `src/static/` ディレクトリ下に展開される静的アクセス用のファイルにアクセスするために必要な設定です。 `root` 変数はプロジェクトディレクトリ下の `src/` ディレクトリを指す絶対パスを指定してください。
+
+   設定内容の書式チェックを行い、 Nginx を再起動します。
+
+   ```console
+   $ sudo nginx -t
+   $ sudo systemctl restart nginx
+   ```
+
+Web サーバーに Nginx ではなく Apache2.x + mod_wsgi を使用する場合、上記の 6 以降の手順の代わりに、 Apache2 側で適切な設定を行うようにしてください (設定方法については割愛します…)。 mod_wsgi を用いた設定で pipenv による仮想環境を参照するうまい方法をご提示してくださる方がいらっしゃれば歓迎します…。
