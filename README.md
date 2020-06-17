@@ -13,10 +13,10 @@
 - プラットフォーム: **Linux**
   - Ubuntu 16.04 / 18.04 にて動作確認済み
 - **Python3.8** を使用します。
-  - Python 言語環境は [Pipenv](https://pypi.org/project/pipenv/) にて整備・仮想化できるようにしてあります。ちゃんと確認はできていませんが、 [pyenv](https://github.com/pyenv/pyenv) のインストールができるようであれば、必ずしも自力で Python3.8 をセットアップする必要はないはずです。
-  - Web アプリケーションフレームワークに [Flask](https://palletsprojects.com/p/flask/) を、データベースの O/R マッパーに [SQLAlchemy](https://www.sqlalchemy.org/) を使用しています。
+  - Python 言語環境は [Pipenv](https://pypi.org/project/pipenv/) にて整備・仮想化できるようにしてあります。ちゃんと確認はできていませんが、 [pyenv](https://github.com/pyenv/pyenv) がインストール済みである場合、必ずしも自力で Python3.8 をセットアップする必要はないはずです。
+  - Web アプリケーションフレームワークに [Flask](https://palletsprojects.com/p/flask/) を、データベースの O/R マッパーに [SQLAlchemy](https://www.sqlalchemy.org/) を使用しています (後述の手順でセットアップする場合、これらを事前にインストールする必要はありません)。
 - クライアントサイドスクリプティングの環境整備のために **[npm](https://www.npmjs.com/)** を使用します。 TypeScript や scss を用いるためのトランスパイルツールと、多少のクライアントサイドライブラリを使用しています。
-  - なるべく新しいバージョンのものを使用してください。 Ubuntu の場合、[この辺の記事](https://qiita.com/seibe/items/36cef7df85fe2cefa3ea)が参考になると思います。
+  - なるべく新しいバージョンのものを事前にインストールしてください。 Ubuntu の場合、[この辺の記事](https://qiita.com/seibe/items/36cef7df85fe2cefa3ea)が参考になると思います。
   - この小さなプロジェクトを構築するには割に合わない webpack などのモジュールバンドラは使用していません。モジュール解決はごくごくアナクロな方法で済ませています。
 - Web アプリケーションインタフェースは **WSGI** を使用します。
   - Web サーバーに [Nginx](http://nginx.org/) を使用する場合、 Web アプリケーションサーバーに [uWSGI](https://uwsgi-docs.readthedocs.io/en/latest/) を使用します。
@@ -124,3 +124,5 @@
    ```
 
 Web サーバーに Nginx ではなく Apache2.x + mod_wsgi を使用する場合、上記の 6 以降の手順の代わりに、 Apache2 側で適切な設定を行うようにしてください (設定方法については割愛します…)。 mod_wsgi を用いた設定で pipenv による仮想環境を参照するうまい方法をご提示してくださる方がいらっしゃれば歓迎します…。
+
+本稿では SSL に対応する手順については記載していません。上記手順にて設定後、 [certbot](https://certbot.eff.org/) を用いることで SSL に対応させることが可能ですが、それ以外の方法を用いる場合 (認証局にて取得した認証を独自に設定する等) は、認証局にて提示される手順等を参考に適宜設定を施してください。
